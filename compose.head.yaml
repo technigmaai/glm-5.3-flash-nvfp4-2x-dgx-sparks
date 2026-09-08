@@ -76,6 +76,14 @@ services:
       MAX_NUM_SEQS: ${MAX_NUM_SEQS:-8}
       MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS:-1024}
       MTP_TOKENS: ${MTP_TOKENS:-3}
+      # ---- weight loading ----
+      # instanttensor = GPU-direct safetensors loader (see LOAD_FORMAT in .env);
+      # set LOAD_FORMAT=auto to fall back to the stock loader.
+      LOAD_FORMAT: ${LOAD_FORMAT:-instanttensor}
+      INSTANTTENSOR_BUFFER_SIZE: "${INSTANTTENSOR_BUFFER_SIZE:-67108864}"
+      INSTANTTENSOR_CHUNK_SIZE: "${INSTANTTENSOR_CHUNK_SIZE:-8388608}"
+      INSTANTTENSOR_CONCURRENCY: "${INSTANTTENSOR_CONCURRENCY:-1}"
+      INSTANTTENSOR_IO_DEPTH: "${INSTANTTENSOR_IO_DEPTH:-3}"
       # ---- per-node (HEAD / rank 0) ----
       NODE_RANK: "0"
       HEADLESS: ""
@@ -112,6 +120,7 @@ services:
           --kv-cache-dtype fp8_ds_mla --block-size 256 \
           --skip-mm-profiling  \
           --limit-mm-per-prompt '{"image": 4, "video": {"count": 1, "num_frames": 32, "width": 512, "height": 512}}' \
+          --load-format "$${LOAD_FORMAT}" \
           --max-model-len "$${MAX_MODEL_LEN}" \
           --max-num-seqs "$${MAX_NUM_SEQS}" \
           --max-num-batched-tokens "$${MAX_NUM_BATCHED_TOKENS}" \
