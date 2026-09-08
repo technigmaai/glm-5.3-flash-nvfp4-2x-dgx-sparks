@@ -15,8 +15,12 @@
 #                                 128 KB smem vs GB10's 99 KB)
 #
 # NOT vendored (base-image or fabric specific, see recipe header): the upstream
-# image-layer patches (flashkda prefill, mm-renderer), their bundled NCCL 2.30.7
-# (direct-cabled ring), and the instanttensor loader (optional speed-up).
+# image-layer patches (flashkda prefill, mm-renderer) and their bundled NCCL
+# 2.30.7 (direct-cabled ring).
+#
+# ADDED on top of the base image: the `instanttensor` wheel, which enables
+# `--load-format instanttensor` (see LOAD_FORMAT in .env). The base image's vLLM
+# already carries the loader hook; only the wheel was missing.
 #
 # Verification markers: `[quantprobe]` in modelopt.py (runtime log must show
 # algo=MXFP8 for the MTP layer), `hc_attn_base` in model.py.
@@ -46,3 +50,58 @@ RUN set -eux; \
         "$B/model_executor/layers/sparse_attn_indexer.py" \
         "$B/model_executor/layers/sparse_attn_indexer_kpool.py"; \
     rm -f /tmp/patch_mla.py /tmp/*.patch
+
+# 3) InstantTensor loader wheel — enables `--load-format instanttensor`.
+#
+# instanttensor's metadata depends on a bare `torch`, so a naive install
+# re-resolves the whole CUDA stack. Two things break if you let it:
+#   * torch 2.13.0+cu130 (aarch64/CUDA) is replaced by the generic PyPI CPU wheel;
+#   * nvidia-nccl-cu13 is DOWNGRADED 2.30.7 -> 2.29.7 (and libnccl_device.bc is
+#     dropped). 2.30.7 is the bundled NCCL this recipe's direct-cabled RoCE ring
+#     is built around — and unlike eugr's image there is no system libnccl here
+#     to symlink over it, so torch loads the pip copy directly. The downgrade
+#     would be silent.
+#
+# So pin every already-installed torch* and nvidia-* distribution via
+# `uv pip --override` (eugr's mods/use-official-vllm pins only the torch trio;
+# their Dockerfile separately redirects libnccl.so.2 at the system copy, which
+# is why the NCCL move is harmless for them and not for us). The libnccl.so.2
+# digest is compared before/after so a future resolver change cannot slip past.
+RUN <<'SH'
+set -eux
+PY=$(command -v python3)
+NCCL_LIB=/usr/local/lib/python3.12/dist-packages/nvidia/nccl/lib/libnccl.so.2
+sha256sum "$NCCL_LIB" | cut -d' ' -f1 > /tmp/nccl-before.sha
+
+"$PY" - > /tmp/pin-override.txt <<'PYIN'
+import importlib.metadata as m
+
+for dist in sorted(m.distributions(), key=lambda d: d.name or ""):
+    name = dist.name or ""
+    if name.startswith("torch") or name.startswith("nvidia-"):
+        print(f"{name}=={dist.version}")
+PYIN
+cat /tmp/pin-override.txt
+
+uv pip install --python "$PY" instanttensor --override /tmp/pin-override.txt
+
+test "$(sha256sum "$NCCL_LIB" | cut -d' ' -f1)" = "$(cat /tmp/nccl-before.sha)"
+test -f /usr/local/lib/python3.12/dist-packages/nvidia/nccl/lib/libnccl_device.bc
+
+"$PY" - <<'PYIN'
+import importlib.metadata as m
+import torch
+import instanttensor  # noqa: F401
+
+pinned = dict(
+    line.split("==") for line in open("/tmp/pin-override.txt").read().split()
+)
+assert torch.__version__ == pinned["torch"], f"torch moved: {torch.__version__}"
+assert torch.version.cuda, "torch lost CUDA support"
+nccl = m.version("nvidia-nccl-cu13")
+assert nccl == pinned["nvidia-nccl-cu13"], f"nccl moved: {nccl}"
+print("instanttensor", m.version("instanttensor"),
+      "| torch", torch.__version__, "| nccl", nccl)
+PYIN
+rm -f /tmp/pin-override.txt /tmp/nccl-before.sha
+SH

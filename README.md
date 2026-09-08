@@ -65,6 +65,11 @@ cp .env.example .env      # edit [EDIT] values: NICs, IPs, SSH, HF_CACHE
 | `MAX_NUM_SEQS` | `8` | |
 | `MAX_NUM_BATCHED_TOKENS` | `1024` | gist: 4096; 8192 OOMs at 512K. Lower = quality-first (less attention smear across speculation paths) |
 | `MTP_TOKENS` | `3` | MTP speculative tokens |
+| `LOAD_FORMAT` | `instanttensor` | GPU-direct safetensors loader; `auto` = stock loader |
+| `INSTANTTENSOR_BUFFER_SIZE` | `67108864` | ring buffer, bytes — must exceed the largest single tensor |
+| `INSTANTTENSOR_CHUNK_SIZE` | `8388608` | read chunk, bytes |
+| `INSTANTTENSOR_CONCURRENCY` | `1` | parallel readers |
+| `INSTANTTENSOR_IO_DEPTH` | `3` | queued I/Os per reader |
 
 ### Memory: MEU drives KV (the gist's KV pin is removed)
 
@@ -80,7 +85,44 @@ If KV sizing looks wrong or the boot OOMs, re-add the pin as the first
 suspect.
 
 
+### Weight loading: InstantTensor
+
+`LOAD_FORMAT=instanttensor` selects vLLM's GPU-direct safetensors loader.
+The base image's vLLM already carries the loader hook — only the wheel was
+missing, so `./Dockerfile` installs it.
+
+**The install needs the pin, not just `pip install instanttensor`.** The
+wheel's metadata depends on a bare `torch`, so an unconstrained resolve does
+two damaging things here:
+
+1. replaces this image's `torch 2.13.0+cu130` (aarch64/CUDA) with the generic
+   PyPI **CPU** wheel;
+2. **downgrades `nvidia-nccl-cu13` 2.30.7 → 2.29.7** and drops
+   `libnccl_device.bc`.
+
+(2) is the one that bites this recipe specifically. 2.30.7 is the bundled NCCL
+the direct-cabled RoCE ring is built around, and this image has **no system
+`libnccl`** — `libtorch_cuda.so` resolves `libnccl.so.2` straight to the pip
+package's copy, so the downgrade is silent and live. eugr's image is immune
+because it symlinks the pip `libnccl.so.2` at the system `libnccl2`, which
+makes the pip version irrelevant there; that escape does not exist here.
+
+So the Dockerfile pins **every installed `torch*` and `nvidia-*` distribution**
+through a `uv pip --override` file, then asserts the `libnccl.so.2` digest is
+unchanged, `libnccl_device.bc` still present, and torch still CUDA-enabled.
+Verified result: the package set differs from the base image by exactly one
+line, `instanttensor==0.1.9`.
+
+Not carried over from eugr's recipe: `--model-loader-extra-config
+'{"instanttensor_copy":false}'`. That zero-copy path is a vLLM *mod* of theirs;
+this base image hardcodes `copy=True` in `instanttensor_weights_iterator`, so
+the flag would be inert here.
+
+If a load ever misbehaves, `LOAD_FORMAT=auto` falls back to the stock loader
+with no rebuild.
+
 ## CHANGE LOG
+--> Added InstantTensor weight loading: model load ~700 s -> ~83 s (184G at 6.38 GB/s). Install pins the CUDA stack so the wheel cannot downgrade the bundled NCCL 2.30.7
 --> Enabled Vision tower, disabled MM profiling, limited MM to 4 images and 1 video, updated batch size to 1024 for quality output
 ## Why each non-obvious knob exists (each proven by a boot that died without it)
 
@@ -103,7 +145,9 @@ suspect.
 
 ## Boot markers (check in order — each has caught a real failure mode)
 
-1. Weight load: `Model loading took ~92.7 GiB and ~700 s`
+1. Weight load: `Model loading took ~92.7 GiB and ~83 s` with
+   `LOAD_FORMAT=instanttensor` (184G at 6.38 GB/s, weights in 32 s).
+   Was ~700 s with the stock loader.
 2. `[quantprobe] ... prefix=model.layers.45.mlp.experts algo=MXFP8`
    — if `algo=None`, the modelopt MTP fix is not live; the serve will die.
 3. `GPU KV cache size: N tokens` — record this; it's the MEU data point.
