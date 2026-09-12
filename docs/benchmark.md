@@ -76,6 +76,28 @@ The second run measures concurrency 1, 2, and 4 at 4K and 8K depth.
 | local-inference-lab/GLM-5.3-Flash-NVFP4 | pp2048 @ d8192 (c4) | 1796.45 ± 17.23 | 857.08 ± 449.31 | | | 15191.66 ± 6132.97 | 14988.60 ± 6132.97 | 15191.66 ± 6132.97 |
 | local-inference-lab/GLM-5.3-Flash-NVFP4 | tg128 @ d8192 (c4) | 19.65 ± 0.73 | 9.54 ± 3.80 | 72.33 ± 3.40 | 21.42 ± 1.75 | | | |
 
+## Tool-use quality benchmark
+
+The qualified deployment was also evaluated with `tool-eval-bench 2.6.1.dev65+g6be685f0e`. The server reported vLLM `0.26.1rc0+jj.glm53.r26.universal.arm64.sm121.cu132.20260905` and a 524,288-token maximum context.
+
+| Metric | Result |
+|---|---:|
+| Overall quality score | 93 / 100 |
+| Rating | 5 / 5 |
+| Scenarios passed | 80 |
+| Scenarios partially passed | 3 |
+| Scenarios failed | 5 |
+| Points | 163 / 176 |
+| Responsiveness score | 28 / 100 |
+| Median turn time | 5.7 s |
+| Deployability score (`0.7 × quality + 0.3 × responsiveness`) | 74 / 100 |
+| Weakest category | G Structured Reasoning (67%) |
+| Total benchmark time | 2,292.0 s |
+| Total token usage | 578,722 |
+| Token efficiency | 0.3 points / 1K tokens |
+
+Each scenario awards two points for a pass, one for a partial result, and zero for a failure. The quality score is the earned-point percentage. The responsiveness score follows the benchmark's logistic latency curve.
+
 ## Result
 
 Restoring the exact R26.1 B12X package recovered 379–490 total prefill tokens/s relative to the R26.2 BF16 arm. The qualified image retains vLLM #665, #701, #706, and #715 while excluding vLLM #727 and B12X #353/#354. It matched or exceeded R26.1 prefill in four of six cells and generation in five of six cells.
