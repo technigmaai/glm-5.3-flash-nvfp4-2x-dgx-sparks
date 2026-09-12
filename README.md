@@ -123,3 +123,9 @@ The default build expects the recorded local base tag `local/vllm:glm53-r26.1-co
 Model weights, Hugging Face caches, `.env`, credentials, logs, benchmark raw output, container archives, and the cluster `tmp/` research archive are excluded. Keep `.env` local because it contains site-specific paths and addresses.
 
 The copied vLLM files retain their upstream Apache-2.0 licensing. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+## Credits
+
+- Kudos to [`0rand`](https://github.com/0rand) for the original [two-node DGX Spark repository](https://github.com/0rand/glm-5.3-flash-nvfp4-2x-dgx-sparks) and its deployment foundation.
+- Kudos to [`MiaAI-Lab`](https://github.com/MiaAI-Lab) for the [GLM-5.3 chat template](https://github.com/MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks/blob/main/files/chat_template.jinja) included in this repository.
+- Thanks to `local-inference-lab` and the vLLM, B12X, FlashInfer, InstantTensor, and related upstream maintainers whose work makes this ARM64 deployment possible.
