@@ -47,11 +47,7 @@ esac
 
 # --- Sync configs to worker ---
 sync_worker() {
-  echo "[glm53] Syncing configs to worker..."
-  ssh "$WORKER_SSH_TARGET" "mkdir -p $WORKER_DIR"
-  scp compose.head.yaml compose.worker.yaml .env stop.sh README.md "$WORKER_SSH_TARGET:$WORKER_DIR/"
-  ssh "$WORKER_SSH_TARGET" "chmod +x $WORKER_DIR/*.sh"
-  echo "[glm53] Sync complete."
+  "$SCRIPT_DIR/sync-repo.sh"
 }
 
 # --- Start worker ---
@@ -68,7 +64,7 @@ start_head() {
   echo "[glm53] Head started."
   echo ""
   echo "  Follow logs: docker logs -f glm53-nvfp4"
-  echo "  Health: curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT:-30000}/health"
+  echo "  Health: curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT:-8000}/health"
 }
 
 
@@ -102,7 +98,7 @@ report_boot() {
   echo ""
   if [ "$rc" -eq 0 ]; then
     echo "[glm53] === STARTUP COMPLETE ==="
-    grep -E 'Model loading took|quantprobe|GPU KV cache size|Application startup complete' "$LOG_FILE" | tail -6
+    grep -E 'Model loading took|InstantTensor|B12X|GPU KV cache size|Application startup complete' "$LOG_FILE" | tail -10
     echo ""
     echo "[glm53] === last 30 lines of $LOG_FILE ==="
     tail -n 30 "$LOG_FILE"
@@ -132,12 +128,11 @@ case "$MODE" in
     start_log_tail
     wait_ready; rc=$?
     report_boot "$rc"
-    echo "  First boot: ~17 min cold (weight load ~700s + init)"
-    echo "  Warm restart: ~6-8 min"
+    echo "  Expected boot: about 4-6 min with InstantTensor on a warm model cache"
     echo ""
     echo "  Boot markers (check in order):"
-    echo "    1. Model loading took ~92.7 GiB and ~700 s"
-    echo "    2. [quantprobe] ... algo=MXFP8   (algo=None = modelopt fix not live)"
+    echo "    1. B12X attention / linear / MoE kernels selected"
+    echo "    2. InstantTensor finishes loading the checkpoint (~90 s observed)"
     echo "    3. GPU KV cache size: N tokens"
     echo "    4. Application startup complete"
     echo ""

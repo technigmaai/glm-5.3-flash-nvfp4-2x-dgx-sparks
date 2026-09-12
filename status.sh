@@ -23,4 +23,10 @@ fi
 
 echo ""
 echo "=== Boot markers (head log) ==="
-docker logs glm53-nvfp4 2>&1 | grep -E 'Model loading took|quantprobe|GPU KV cache size|Application startup complete' | tail -6 || echo "  (no markers yet)"
+docker logs glm53-nvfp4 2>&1 | grep -E 'Model loading took|B12xMxfp8|FlashAttention version 2|split GLM-5.3 cache pages|DFlash draft KV layers|GPU KV cache size|Graph capturing finished|Application startup complete' | tail -12 || echo "  (no markers yet)"
+
+echo ""
+echo "=== Speculative decoding counters ==="
+curl -s --max-time 5 "http://localhost:${PORT}/metrics" 2>/dev/null \
+  | grep -E '^vllm:spec_decode_num_(draft_tokens|accepted_tokens)_total' \
+  || echo "  (no speculative counters yet)"

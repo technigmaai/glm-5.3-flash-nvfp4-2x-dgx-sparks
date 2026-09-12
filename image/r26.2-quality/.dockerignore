@@ -1,0 +1,6 @@
+*
+!Dockerfile
+!overlay/
+!overlay/**
+**/__pycache__/
+**/*.pyc

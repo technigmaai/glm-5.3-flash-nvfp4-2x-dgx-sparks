@@ -1,0 +1,6 @@
+a710010c37eb2b424425e62de245aa30d510a1711a5b02fb81a18e297aa5b314  overlay/vllm/entrypoints/chat_utils.py
+6b9cc30a2cdaa4668cb31a7c6da8a48a0143b9a70f0c38a4d6ccc0949fafcadf  overlay/vllm/model_executor/layers/fused_moe/runner/shared_experts.py
+d1bf847ae7b9d7881812412407f8ffb2d25319ef5ea2f533b0130fcd6b2d71ea  overlay/vllm/models/glm5next/nvidia/mtp.py
+1a315f581d5758a7eb34c3ea0ce19fd758c2b9f8ca509da36c2beefc6c96ee9f  overlay/vllm/models/glm5next/nvidia/ops/glm_kpool.py
+cae81fe96b4224bebc213fbdc02d94697f0ad79ed945f489c6aaca5e04bd02a1  overlay/vllm/parser/engine/parser_engine.py
+a27640e480e8cb20d5a943e4c49a5271ab8cfaafc0d90c61a7024e7d1cc569d8  overlay/vllm/v1/core/sched/scheduler.py

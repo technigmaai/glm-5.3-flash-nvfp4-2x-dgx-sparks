@@ -1,7 +1,8 @@
 # GLM-5.3-Flash NVFP4 (lab quant) on 2x DGX Spark (TP=2 over RoCE)
 # HEAD node (rank 0) — start AFTER the worker is listening.
 #
-# Recipe: kilork gist a887667f — day-0 vLLM + 5 patches, MTP k=3, 512K ctx.
+# Qualified R26.2 quality image: MTP3, 4096 batched tokens, 512K context,
+# 512-token split pages, and prefix caching.
 # NOTE: image ENTRYPOINT is ["vllm","serve"] — the bash wrapper below needs
 #       the explicit entrypoint override (same as SparkServe-TP2).
 #
@@ -24,6 +25,7 @@ services:
       stack: 67108864
     volumes:
       - ${HF_CACHE:?set HF_CACHE in .env}:/root/.cache/huggingface
+      - ./files/chat_template.jinja:/opt/glm53/chat_template.jinja:ro
     deploy:
       resources:
         reservations:
@@ -60,30 +62,55 @@ services:
       VLLM_HOST_IP: "${HEAD_ROCE_IP:?set HEAD_ROCE_IP in .env}"
       # ---- runtime ----
       HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      SAFETENSORS_FAST_GPU: "1"
       PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
       VLLM_ENGINE_READY_TIMEOUT_S: "3600"
-      # NoPE-MLA rope-pad (load-bearing — see README)
-      VLLM_MLA_NOPE_PAD_ROPE: "1"
+      VLLM_SSM_CONV_STATE_LAYOUT: DS
+      VLLM_USE_AOT_COMPILE: "1"
+      VLLM_USE_MEGA_AOT_ARTIFACT: "1"
+      VLLM_USE_V2_MODEL_RUNNER: "1"
+      VLLM_WORKER_MULTIPROC_METHOD: spawn
+      VLLM_ENABLE_PCIE_ALLREDUCE: "0"
+      # Target/recurrent split-cache geometry for the planned MTP test.
+      # A present but empty value selects vLLM's generic cache allocator.
+      GLM53_SPLIT_TARGET_BLOCK_SIZE: "${GLM53_SPLIT_TARGET_BLOCK_SIZE-512}"
+      VLLM_PLUGINS: ""
+      B12X_POLICY_MODE: auto
+      INSTANTTENSOR_BACKEND: BUFFERED
+      INSTANTTENSOR_BUFFER_SIZE: "67108864"
+      INSTANTTENSOR_CHUNK_SIZE: "8388608"
+      INSTANTTENSOR_CONCURRENCY: "1"
+      INSTANTTENSOR_IO_DEPTH: "3"
       # ---- model / serve ----
       MODEL_PATH: ${MODEL_PATH:?set MODEL_PATH in .env}
       MODEL_REVISION: "${MODEL_REVISION:?set MODEL_REVISION in .env}"
       SERVED_MODEL_NAME: ${SERVED_MODEL_NAME:-glm53-flash}
-      PORT: ${PORT:-30000}
-      MASTER_PORT: ${MASTER_PORT:-29500}
-      GPU_MEM: ${GPU_MEMORY_UTILIZATION:-0.86}
+      CHAT_TEMPLATE: ${CHAT_TEMPLATE:-/opt/glm53/chat_template.jinja}
+      PORT: ${PORT:-8000}
+      MASTER_PORT: ${MASTER_PORT:-29553}
+      GPU_MEM: ${GPU_MEMORY_UTILIZATION:-0.89}
       TP_SIZE: ${TP_SIZE:-2}
       MAX_MODEL_LEN: ${MAX_MODEL_LEN:-524288}
-      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-8}
-      MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS:-1024}
+      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-4}
+      MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS:-4096}
+      # Empty means vLLM profiles memory and sizes the cache from GPU_MEM.
+      KV_CACHE_MEMORY_BYTES: ${KV_CACHE_MEMORY_BYTES-}
+      KV_CACHE_DTYPE: ${KV_CACHE_DTYPE:-fp8}
+      DFLASH_KV_CACHE_MEMORY_BYTES: ${DFLASH_KV_CACHE_MEMORY_BYTES-}
+      SPECULATOR: ${SPECULATOR:-mtp}
       MTP_TOKENS: ${MTP_TOKENS:-3}
-      # ---- weight loading ----
-      # instanttensor = GPU-direct safetensors loader (see LOAD_FORMAT in .env);
-      # set LOAD_FORMAT=auto to fall back to the stock loader.
-      LOAD_FORMAT: ${LOAD_FORMAT:-instanttensor}
-      INSTANTTENSOR_BUFFER_SIZE: "${INSTANTTENSOR_BUFFER_SIZE:-67108864}"
-      INSTANTTENSOR_CHUNK_SIZE: "${INSTANTTENSOR_CHUNK_SIZE:-8388608}"
-      INSTANTTENSOR_CONCURRENCY: "${INSTANTTENSOR_CONCURRENCY:-1}"
-      INSTANTTENSOR_IO_DEPTH: "${INSTANTTENSOR_IO_DEPTH:-3}"
+      # The replacement checkpoint's MTP experts are MXFP8; B12X supports the
+      # NVFP4 target experts but is rejected for this MXFP8 draft path.
+      MTP_MOE_BACKEND: ${MTP_MOE_BACKEND:-humming}
+      VLLM_GLM53_MTP_DRAFT_HEAD: "${GLM53_MTP_DRAFT_HEAD:-bf16}"
+      KDA_PREFILL_BACKEND: ${KDA_PREFILL_BACKEND:-b12x}
+      TARGET_MOE_BACKEND: ${TARGET_MOE_BACKEND:-b12x}
+      ASYNC_SCHEDULING: ${ASYNC_SCHEDULING:-1}
+      PREFIX_CACHING: ${PREFIX_CACHING:-1}
+      DFLASH_TOKENS: ${DFLASH_TOKENS:-7}
+      DFLASH_MODEL: ${DFLASH_MODEL:-}
+      DFLASH_REVISION: ${DFLASH_REVISION:-}
       # ---- per-node (HEAD / rank 0) ----
       NODE_RANK: "0"
       HEADLESS: ""
@@ -102,32 +129,69 @@ services:
           done
         done
 
-        echo "[glm53] NODE_RANK=$${NODE_RANK} MTP=$${MTP_TOKENS} GID=$${NCCL_IB_GID_INDEX}"
+        echo "[glm53] NODE_RANK=$${NODE_RANK} SPECULATOR=$${SPECULATOR} MTP=$${MTP_TOKENS} DFLASH=$${DFLASH_TOKENS} GID=$${NCCL_IB_GID_INDEX}"
 
         # rank 0 serves the API; headless worker (rank 1) drops --host/--port.
         SERVE_NET=""
         if [ -z "$${HEADLESS}" ]; then SERVE_NET="--host 0.0.0.0 --port $${PORT}"; fi
 
+        SPEC_ARGS=""
+        CACHE_ARGS=""
+        if [ "$${PREFIX_CACHING}" = "1" ]; then CACHE_ARGS="--enable-prefix-caching"; fi
+        KV_CACHE_BYTES="$${KV_CACHE_MEMORY_BYTES}"
+        if [ -n "$${GLM53_SPLIT_TARGET_BLOCK_SIZE}" ]; then
+          export VLLM_GLM53_SPLIT_TARGET_BLOCK_SIZE="$${GLM53_SPLIT_TARGET_BLOCK_SIZE}"
+        fi
+        case "$${SPECULATOR}" in
+          dflash)
+            [ -n "$${DFLASH_MODEL}" ] || { echo "[glm53] DFLASH_MODEL is required" >&2; exit 2; }
+            [ -n "$${DFLASH_REVISION}" ] || { echo "[glm53] DFLASH_REVISION is required" >&2; exit 2; }
+            KV_CACHE_BYTES="$${DFLASH_KV_CACHE_MEMORY_BYTES}"
+            SPEC_ARGS='--speculative-config {"method":"dflash","model":"'"$${DFLASH_MODEL}"'","revision":"'"$${DFLASH_REVISION}"'","num_speculative_tokens":'"$${DFLASH_TOKENS}"',"draft_tensor_parallel_size":'"$${TP_SIZE}"',"attention_backend":"FLASH_ATTN","kv_cache_dtype":"auto","draft_load_config":{"load_format":"safetensors","safetensors_load_strategy":"lazy"}}'
+            ;;
+          mtp)
+            if [ "$${MTP_TOKENS}" -gt 0 ]; then
+              SPEC_ARGS='--speculative-config {"method":"mtp","num_speculative_tokens":'"$${MTP_TOKENS}"',"moe_backend":"'"$${MTP_MOE_BACKEND}"'","attention_backend":"B12X"}'
+            fi
+            ;;
+          none) ;;
+          *) echo "[glm53] Unsupported SPECULATOR=$${SPECULATOR} (use dflash, mtp, or none)" >&2; exit 2 ;;
+        esac
+
+        KV_ARGS=""
+        if [ -n "$${KV_CACHE_BYTES}" ]; then
+          KV_ARGS="--kv-cache-memory-bytes $${KV_CACHE_BYTES}"
+        fi
+        ASYNC_ARGS=""
+        if [ "$${ASYNC_SCHEDULING}" = "1" ]; then ASYNC_ARGS="--async-scheduling"; fi
+
         exec vllm serve "$${MODEL_PATH}" \
           --revision "$${MODEL_REVISION}" \
-          --served-model-name "$${SERVED_MODEL_NAME}" \
+          --served-model-name $${SERVED_MODEL_NAME} \
+          --chat-template "$${CHAT_TEMPLATE}" \
           --trust-remote-code --distributed-executor-backend mp \
           --tensor-parallel-size "$${TP_SIZE}" \
           --nnodes 2 --node-rank "$${NODE_RANK}" \
           --master-addr "$${MASTER_ADDR}" --master-port "$${MASTER_PORT}" \
           $${HEADLESS:+--headless} \
           --gpu-memory-utilization "$${GPU_MEM}" \
-          --kv-cache-dtype fp8_ds_mla --block-size 256 \
-          --skip-mm-profiling  \
-          --limit-mm-per-prompt '{"image": 4, "video": {"count": 1, "num_frames": 32, "width": 512, "height": 512}}' \
-          --load-format "$${LOAD_FORMAT}" \
+          $${KV_ARGS} \
+          --dtype bfloat16 --kv-cache-dtype "$${KV_CACHE_DTYPE}" \
+          --quantization modelopt_mixed \
+          --attention-backend B12X --block-size 256 \
+          --moe-backend "$${TARGET_MOE_BACKEND}" --linear-backend b12x \
+          --no-enable-flashinfer-autotune \
+          --load-format instanttensor \
+          --model-loader-extra-config '{"instanttensor_copy":false,"instanttensor_distributed":false}' \
+          --mamba-cache-mode align \
+          --kda-prefill-backend "$${KDA_PREFILL_BACKEND}" \
           --max-model-len "$${MAX_MODEL_LEN}" \
           --max-num-seqs "$${MAX_NUM_SEQS}" \
           --max-num-batched-tokens "$${MAX_NUM_BATCHED_TOKENS}" \
-          --enable-chunked-prefill --async-scheduling --enable-prefix-caching \
+          --enable-chunked-prefill \
+          $${ASYNC_ARGS} \
+          $${CACHE_ARGS} \
           --disable-custom-all-reduce \
-          --kernel-config '{"enable_cutedsl_warmup":false,"enable_flashinfer_autotune":false}' \
-          --speculative-config '{"method":"mtp","num_speculative_tokens":${MTP_TOKENS}}' \
-          --enforce-eager \
+          $${SPEC_ARGS} \
           --tool-call-parser glm47 --enable-auto-tool-choice --reasoning-parser glm45 \
           $${SERVE_NET}
