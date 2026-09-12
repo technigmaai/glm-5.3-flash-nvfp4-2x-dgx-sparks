@@ -2,5 +2,5 @@ image_id=sha256:c13006e527115a28cf8d680ce48c2fa5bfb9fa4165474fccb8c6a13898413325
 architecture=arm64
 os=linux
 size_bytes=13066115570
-repo_tags=["local/vllm:glm53-r26.2-quality-bf16-r261-b12x-arm64-sm121"]
-repo_digests=["local/vllm@sha256:c13006e527115a28cf8d680ce48c2fa5bfb9fa4165474fccb8c6a13898413325"]
+repo_tags=["local/vllm:glm53-r26.2-quality-bf16-r261-b12x-arm64-sm121","technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r26.2-quality-bf16-arm64-sm121"]
+repo_digests=["local/vllm@sha256:c13006e527115a28cf8d680ce48c2fa5bfb9fa4165474fccb8c6a13898413325","technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks@sha256:c13006e527115a28cf8d680ce48c2fa5bfb9fa4165474fccb8c6a13898413325"]

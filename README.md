@@ -9,6 +9,7 @@ The published image is Linux ARM64 and targets Blackwell `sm_121`. It keeps the 
 | Setting | Value |
 |---|---|
 | Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r26.2-quality-bf16-arm64-sm121` |
+| Docker Hub digest | `sha256:c13006e527115a28cf8d680ce48c2fa5bfb9fa4165474fccb8c6a13898413325` |
 | Local image ID used for qualification | `sha256:c13006e527115a28cf8d680ce48c2fa5bfb9fa4165474fccb8c6a13898413325` |
 | Model revision | `46aaae8a82032f77100f2f03e9cc11b391df3b4d` |
 | Tensor parallelism | 2 nodes × 1 GPU |
