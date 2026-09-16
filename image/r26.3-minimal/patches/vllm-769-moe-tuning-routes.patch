@@ -1,0 +1,26 @@
+--- a/vllm/model_executor/layers/fused_moe/b12x.py
++++ b/vllm/model_executor/layers/fused_moe/b12x.py
+@@ -672,13 +672,19 @@
+                 device=device,
+             )
+             output = torch.empty_like(hidden_states)
++            route_rows = torch.arange(
++                tokens, dtype=torch.int32, device=device
++            ).unsqueeze(1)
++            route_columns = torch.arange(
++                topk, dtype=torch.int32, device=device
++            ).unsqueeze(0)
++            # Spread tuning routes across the expert set. Repeating only the
++            # first top-k experts can select an undersized persistent grid.
+             topk_ids = (
+-                torch.arange(topk, device=device, dtype=torch.int32)
+-                .unsqueeze(0)
+-                .expand(tokens, -1)
++                (route_rows * topk + route_columns)
++                .remainder_(int(prepared.num_experts))
+                 .contiguous()
+             )
+-            topk_ids.remainder_(int(prepared.num_experts))
+             topk_weights = torch.full(
+                 (tokens, topk),
+                 1.0 / topk,

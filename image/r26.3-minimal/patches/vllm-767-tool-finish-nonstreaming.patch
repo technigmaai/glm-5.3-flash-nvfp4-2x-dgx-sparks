@@ -1,0 +1,17 @@
+--- a/vllm/entrypoints/openai/chat_completion/serving.py
++++ b/vllm/entrypoints/openai/chat_completion/serving.py
+@@ -1074,11 +1074,9 @@
+             # In OpenAI's API, when a tool is called, the finish_reason is:
+             # "tool_calls" for "auto" or "required" tool calls,
+             # and "stop" for named tool calls.
+-            is_finish_reason_tool_calls = auto_tools_called or (
+-                request.tool_choice
+-                and request.tool_choice == "required"
+-                and output.finish_reason == "stop"
+-            )
++            is_finish_reason_tool_calls = (
++                auto_tools_called and output.finish_reason in (None, "stop")
++            ) or (request.tool_choice == "required" and output.finish_reason == "stop")
+ 
+             routed_experts_b64 = (
+                 numpy2base64(output.routed_experts)
