@@ -98,6 +98,21 @@ The qualified deployment was also evaluated with `tool-eval-bench 2.6.1.dev65+g6
 
 Each scenario awards two points for a pass, one for a partial result, and zero for a failure. The quality score is the earned-point percentage. The responsiveness score follows the benchmark's logistic latency curve.
 
+## R26.3 minimal candidate
+
+On 2026-09-16, the R26.3 minimal candidate added vLLM #767/#769 and B12X #362 to the qualified R26.2 quality image. It retained the same model revision and serving configuration. Two full llama-benchy sweeps passed coherence and completed without runtime errors.
+
+| Case | R26.2 production PP | R26.3 PP run 1 | R26.3 PP run 2 | R26.2 production TG | R26.3 TG run 1 | R26.3 TG run 2 |
+|---|---:|---:|---:|---:|---:|---:|
+| 4096 c1 | 1857.03 | 1680.59 | 1857.65 | 27.91 | 25.13 | 26.49 |
+| 4096 c2 | 1749.94 | 1739.94 | 1712.27 | 26.15 | 26.51 | 25.34 |
+| 4096 c4 | 1759.26 | 1724.75 | 1755.87 | 26.68 | 27.19 | 24.31 |
+| 8192 c1 | 1867.49 | 1834.96 | 1855.45 | 27.36 | 25.31 | 29.21 |
+| 8192 c2 | 1791.68 | 1764.13 | 1761.08 | 24.15 | 23.51 | 22.91 |
+| 8192 c4 | 1796.45 | 1807.45 | 1792.02 | 19.65 | 18.66 | 19.99 |
+
+The warm R26.3 run roughly matched R26.2 prefill, but generation was mixed and lower in four of six cells. vLLM #769 is therefore compatible on TP2 GB10 but is not a demonstrated end-to-end speed improvement for this deployment. The candidate remains valuable for the vLLM #767 tool-truncation and B12X #362 MXFP8 bounds fixes.
+
 ## Result
 
 Restoring the exact R26.1 B12X package recovered 379–490 total prefill tokens/s relative to the R26.2 BF16 arm. The qualified image retains vLLM #665, #701, #706, and #715 while excluding vLLM #727 and B12X #353/#354. It matched or exceeded R26.1 prefill in four of six cells and generation in five of six cells.
