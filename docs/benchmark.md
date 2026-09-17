@@ -116,3 +116,32 @@ The warm R26.3 run roughly matched R26.2 prefill, but generation was mixed and l
 ## Result
 
 Restoring the exact R26.1 B12X package recovered 379–490 total prefill tokens/s relative to the R26.2 BF16 arm. The qualified image retains vLLM #665, #701, #706, and #715 while excluding vLLM #727 and B12X #353/#354. It matched or exceeded R26.1 prefill in four of six cells and generation in five of six cells.
+
+## R26.3 one-million-context production profile
+
+On 2026-09-17, the current non-Spark revision `175ae8ce3b5af842b0d0140dbeb43e9cfc557c49` was qualified with the following profile:
+
+- maximum context: 1,047,552 tokens
+- fixed FP8 KV cache: 11,700 MiB per rank
+- measured KV capacity: 1,074,109 tokens, 1.03× the maximum request
+- 1,024-token split target pages
+- four maximum sequences and 4,096 maximum batched tokens
+- MTP3 with Marlin MXFP8 draft experts
+- draft-only NVFP4 vocabulary head; BF16 target verifier vocabulary head
+- local argmax reduction and RoCEnante custom collectives up to 2 MiB
+- B12X target attention, linear, MoE and KDA prefill
+- full and piecewise CUDA graph capture
+
+The Spark and non-Spark arms used the same R26.3 image and configuration. Only the model checkpoint changed.
+
+| Depth | Concurrency | Spark PP | Non-Spark PP | Spark TG | Non-Spark TG | Spark TTFR ms | Non-Spark TTFR ms |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 4,096 | 1 | 1,760.59 | 1,678.19 | 28.57 | 31.09 | 3,667.78 | 3,855.86 |
+| 4,096 | 2 | 1,807.96 | 1,760.55 | 25.84 | 29.09 | 5,090.11 | 5,240.97 |
+| 4,096 | 4 | 1,802.43 | 1,727.87 | 25.12 | 27.98 | 8,478.03 | 8,964.70 |
+| 8,192 | 1 | 1,901.81 | 1,873.13 | 29.47 | 31.62 | 5,549.01 | 5,659.05 |
+| 8,192 | 2 | 1,843.96 | 1,809.84 | 22.79 | 24.26 | 8,710.05 | 8,872.79 |
+| 8,192 | 4 | 1,796.82 | 1,740.44 | 20.36 | 21.34 | 14,334.43 | 14,890.66 |
+| Average | | 1,818.93 | 1,765.00 | 25.36 | 27.56 | | |
+
+The non-Spark checkpoint generated faster in all six cells. Spark retained higher prefill and lower TTFR. Non-Spark MTP draft acceptance was commonly 52–65%, with the third draft position frequently accepted 31–52%; this made MTP3 materially more effective for decode than on the Spark checkpoint. Both coherence checks passed and neither arm produced CUDA, OOM, traceback or service errors.

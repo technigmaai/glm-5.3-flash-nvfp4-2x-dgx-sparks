@@ -70,9 +70,14 @@ services:
       VLLM_USE_V2_MODEL_RUNNER: "1"
       VLLM_WORKER_MULTIPROC_METHOD: spawn
       VLLM_ENABLE_PCIE_ALLREDUCE: "0"
+      VLLM_ENABLE_ROCE_ALLREDUCE: "${VLLM_ENABLE_ROCE_ALLREDUCE:-0}"
+      VLLM_ROCE_ALLREDUCE_MAX_SIZE: "${VLLM_ROCE_ALLREDUCE_MAX_SIZE:-2MB}"
+      VLLM_PCIE_ALLREDUCE_BACKEND: ${VLLM_PCIE_ALLREDUCE_BACKEND:-cpp}
+      VLLM_SPARSE_INDEXER_MAX_LOGITS_MB: "${VLLM_SPARSE_INDEXER_MAX_LOGITS_MB:-64}"
+      VLLM_FLASHINFER_AUTOTUNE_DISTRIBUTED_SYNC: "${VLLM_FLASHINFER_AUTOTUNE_DISTRIBUTED_SYNC:-0}"
       # Target/recurrent split-cache geometry for the planned MTP test.
       # A present but empty value selects vLLM's generic cache allocator.
-      GLM53_SPLIT_TARGET_BLOCK_SIZE: "${GLM53_SPLIT_TARGET_BLOCK_SIZE-512}"
+      GLM53_SPLIT_TARGET_BLOCK_SIZE: "${GLM53_SPLIT_TARGET_BLOCK_SIZE-1024}"
       VLLM_PLUGINS: ""
       B12X_POLICY_MODE: auto
       INSTANTTENSOR_BACKEND: BUFFERED
@@ -80,6 +85,7 @@ services:
       INSTANTTENSOR_CHUNK_SIZE: "8388608"
       INSTANTTENSOR_CONCURRENCY: "1"
       INSTANTTENSOR_IO_DEPTH: "3"
+      INSTANTTENSOR_EXTRA_CONFIG: "${INSTANTTENSOR_EXTRA_CONFIG:-1}"
       # ---- model / serve ----
       MODEL_PATH: ${MODEL_PATH:?set MODEL_PATH in .env}
       MODEL_REVISION: "${MODEL_REVISION:?set MODEL_REVISION in .env}"
@@ -89,9 +95,13 @@ services:
       MASTER_PORT: ${MASTER_PORT:-29553}
       GPU_MEM: ${GPU_MEMORY_UTILIZATION:-0.89}
       TP_SIZE: ${TP_SIZE:-2}
-      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-524288}
+      DCP_SIZE: ${DCP_SIZE:-1}
+      CP_KV_CACHE_INTERLEAVE_SIZE: ${CP_KV_CACHE_INTERLEAVE_SIZE:-1}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-1047552}
       MAX_NUM_SEQS: ${MAX_NUM_SEQS:-4}
       MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS:-4096}
+      MAX_CUDAGRAPH_CAPTURE_SIZE: ${MAX_CUDAGRAPH_CAPTURE_SIZE-}
+      SKIP_MM_PROFILING: ${SKIP_MM_PROFILING:-0}
       # Empty means vLLM profiles memory and sizes the cache from GPU_MEM.
       KV_CACHE_MEMORY_BYTES: ${KV_CACHE_MEMORY_BYTES-}
       KV_CACHE_DTYPE: ${KV_CACHE_DTYPE:-fp8}
@@ -100,10 +110,14 @@ services:
       MTP_TOKENS: ${MTP_TOKENS:-3}
       MTP_MOE_BACKEND: ${MTP_MOE_BACKEND:-humming}
       VLLM_GLM53_MTP_DRAFT_HEAD: "${GLM53_MTP_DRAFT_HEAD:-bf16}"
+      MTP_LOCAL_ARGMAX: "${MTP_LOCAL_ARGMAX:-false}"
+      CUSTOM_ALL_REDUCE: "${CUSTOM_ALL_REDUCE:-0}"
       KDA_PREFILL_BACKEND: ${KDA_PREFILL_BACKEND:-b12x}
       TARGET_MOE_BACKEND: ${TARGET_MOE_BACKEND:-b12x}
       ASYNC_SCHEDULING: ${ASYNC_SCHEDULING:-1}
       PREFIX_CACHING: ${PREFIX_CACHING:-1}
+      FLASHINFER_AUTOTUNE: ${FLASHINFER_AUTOTUNE:-0}
+      CUDAGRAPH_MODE: ${CUDAGRAPH_MODE:-}
       DFLASH_TOKENS: ${DFLASH_TOKENS:-7}
       DFLASH_MODEL: ${DFLASH_MODEL:-}
       DFLASH_REVISION: ${DFLASH_REVISION:-}
@@ -133,6 +147,10 @@ services:
 
         SPEC_ARGS=""
         CACHE_ARGS=""
+        MODEL_LOADER_EXTRA_ARGS=""
+        if [ "$${INSTANTTENSOR_EXTRA_CONFIG}" = "1" ]; then
+          MODEL_LOADER_EXTRA_ARGS='--model-loader-extra-config {"instanttensor_copy":false,"instanttensor_distributed":false}'
+        fi
         if [ "$${PREFIX_CACHING}" = "1" ]; then CACHE_ARGS="--enable-prefix-caching"; fi
         KV_CACHE_BYTES="$${KV_CACHE_MEMORY_BYTES}"
         if [ -n "$${GLM53_SPLIT_TARGET_BLOCK_SIZE}" ]; then
@@ -147,7 +165,7 @@ services:
             ;;
           mtp)
             if [ "$${MTP_TOKENS}" -gt 0 ]; then
-              SPEC_ARGS='--speculative-config {"method":"mtp","num_speculative_tokens":'"$${MTP_TOKENS}"',"moe_backend":"'"$${MTP_MOE_BACKEND}"'","attention_backend":"B12X"}'
+              SPEC_ARGS='--speculative-config {"method":"mtp","num_speculative_tokens":'"$${MTP_TOKENS}"',"moe_backend":"'"$${MTP_MOE_BACKEND}"'","attention_backend":"B12X","use_local_argmax_reduction":'"$${MTP_LOCAL_ARGMAX}"'}'
             fi
             ;;
           none) ;;
@@ -160,6 +178,19 @@ services:
         fi
         ASYNC_ARGS=""
         if [ "$${ASYNC_SCHEDULING}" = "1" ]; then ASYNC_ARGS="--async-scheduling"; fi
+        ALLREDUCE_ARGS="--disable-custom-all-reduce"
+        if [ "$${CUSTOM_ALL_REDUCE}" = "1" ]; then ALLREDUCE_ARGS=""; fi
+        MM_PROFILE_ARGS=""; if [ "$${SKIP_MM_PROFILING}" = "1" ]; then MM_PROFILE_ARGS="--skip-mm-profiling"; fi
+        FLASHINFER_AUTOTUNE_ARGS="--no-enable-flashinfer-autotune"
+        if [ "$${FLASHINFER_AUTOTUNE}" = "1" ]; then FLASHINFER_AUTOTUNE_ARGS=""; fi
+        CUDAGRAPH_CAPTURE_ARGS=""
+        if [ -n "$${MAX_CUDAGRAPH_CAPTURE_SIZE}" ]; then
+          CUDAGRAPH_CAPTURE_ARGS="--max-cudagraph-capture-size $${MAX_CUDAGRAPH_CAPTURE_SIZE}"
+        fi
+        COMPILATION_ARGS=""
+        if [ -n "$${CUDAGRAPH_MODE}" ]; then
+          COMPILATION_ARGS='--compilation-config {"cudagraph_mode":"'"$${CUDAGRAPH_MODE}"'"}'
+        fi
 
         exec vllm serve "$${MODEL_PATH}" \
           --revision "$${MODEL_REVISION}" \
@@ -167,6 +198,8 @@ services:
           --chat-template "$${CHAT_TEMPLATE}" \
           --trust-remote-code --distributed-executor-backend mp \
           --tensor-parallel-size "$${TP_SIZE}" \
+          --decode-context-parallel-size "$${DCP_SIZE}" \
+          --cp-kv-cache-interleave-size "$${CP_KV_CACHE_INTERLEAVE_SIZE}" \
           --nnodes 2 --node-rank "$${NODE_RANK}" \
           --master-addr "$${MASTER_ADDR}" --master-port "$${MASTER_PORT}" \
           $${HEADLESS:+--headless} \
@@ -176,18 +209,21 @@ services:
           --quantization modelopt_mixed \
           --attention-backend B12X --block-size 256 \
           --moe-backend "$${TARGET_MOE_BACKEND}" --linear-backend b12x \
-          --no-enable-flashinfer-autotune \
+          $${FLASHINFER_AUTOTUNE_ARGS} \
           --load-format instanttensor \
-          --model-loader-extra-config '{"instanttensor_copy":false,"instanttensor_distributed":false}' \
+          $${MODEL_LOADER_EXTRA_ARGS} \
+          $${MM_PROFILE_ARGS} \
           --mamba-cache-mode align \
           --kda-prefill-backend "$${KDA_PREFILL_BACKEND}" \
           --max-model-len "$${MAX_MODEL_LEN}" \
           --max-num-seqs "$${MAX_NUM_SEQS}" \
           --max-num-batched-tokens "$${MAX_NUM_BATCHED_TOKENS}" \
           --enable-chunked-prefill \
+          $${COMPILATION_ARGS} \
+          $${CUDAGRAPH_CAPTURE_ARGS} \
           $${ASYNC_ARGS} \
           $${CACHE_ARGS} \
-          --disable-custom-all-reduce \
+          $${ALLREDUCE_ARGS} \
           $${SPEC_ARGS} \
           --tool-call-parser glm47 --enable-auto-tool-choice --reasoning-parser glm45 \
           $${SERVE_NET}
