@@ -8,8 +8,9 @@ The current qualified profile uses the R26.3 minimal ARM64 image, a 1,047,552-to
 
 | Setting | Value |
 |---|---|
-| Image | `local/vllm:glm53-r26.3-minimal-arm64-sm121` |
-| Image ID | `sha256:b691df035abd9255b4ee9ebbb07ceeb8914ab2a550597c548dff3a8bd5f8b464` |
+| Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r26.3-minimal-arm64-sm121` |
+| Docker Hub index digest | `sha256:b691df035abd9255b4ee9ebbb07ceeb8914ab2a550597c548dff3a8bd5f8b464` |
+| ARM64 manifest digest | `sha256:63579eb51013ad63af46919993d668516cab2c3cc1205e47f0610f6fea2ff5c7` |
 | Model | `local-inference-lab/GLM-5.3-Flash-NVFP4` |
 | Model revision | `175ae8ce3b5af842b0d0140dbeb43e9cfc557c49` |
 | Tensor parallelism | 2 nodes × 1 GPU |
@@ -61,15 +62,18 @@ Install Docker with the NVIDIA container runtime on both ARM64 DGX Spark nodes. 
 ```bash
 git clone https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks.git
 cd glm-5.3-flash-nvfp4-2x-dgx-sparks
-
-cd image/r26.3-minimal
-./build.sh
-python validate_r263_runtime.py
-cd ../..
-
+docker pull technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r26.3-minimal-arm64-sm121
 cp .env.example .env
 # Edit cache paths, RoCE interfaces, addresses, SSH target, and worker path.
 ./start.sh
+```
+
+To reproduce the image locally from the published R26.2 base:
+
+```bash
+cd image/r26.3-minimal
+./build.sh
+python validate_r263_runtime.py
 ```
 
 `start.sh` syncs the repository to the worker, starts rank 1 first, waits 15 seconds, and starts rank 0. It does not copy `.git`, `logs/`, or `tmp/`.
