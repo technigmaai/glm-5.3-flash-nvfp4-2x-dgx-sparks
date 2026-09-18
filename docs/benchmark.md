@@ -175,7 +175,7 @@ These results were collected from the qualified R26.3 non-Spark deployment. This
 
 Prefill remained between 1,657.92 and 1,874.71 tokens/s through 262K depth, then fell to 388.42 tokens/s at 524K. Generation stayed between 26.80 and 38.04 tokens/s across the tested depths. The 524K prefill result should be treated as a distinct long-context behavior rather than combined with the shorter-depth average.
 
-### Non-Spark concurrency run
+### Non-Spark concurrency run (TG512)
 
 This run measures concurrency 1, 2, and 4 at 4K, 8K, and 16K depth, using a 2,048-token prompt-processing sample and 512 generated tokens.
 
@@ -199,3 +199,60 @@ This run measures concurrency 1, 2, and 4 at 4K, 8K, and 16K depth, using a 2,04
 | local-inference-lab/GLM-5.3-Flash-NVFP4 |  tg512 @ d16384 (c2) |    31.39 ± 1.62 |     19.87 ± 4.35 | 62.00 ± 0.82 |     32.67 ± 1.25 |                     |                     |                     |
 | local-inference-lab/GLM-5.3-Flash-NVFP4 | pp2048 @ d16384 (c4) |  1766.36 ± 0.14 |  908.16 ± 503.22 |              |                  | 26453.85 ± 11567.27 | 26270.95 ± 11567.27 | 26453.85 ± 11567.27 |
 | local-inference-lab/GLM-5.3-Flash-NVFP4 |  tg512 @ d16384 (c4) |    32.65 ± 0.26 |     11.95 ± 2.80 | 85.67 ± 2.62 |     25.75 ± 2.35 |                     |                     |                     |
+
+### Non-Spark concurrency run (TG128)
+
+Date: 2026-09-18
+
+This repeat uses the same deployment, prompt-processing sample, depths, and concurrency levels as the TG512 run, with generation shortened to 128 tokens.
+
+```bash
+uvx --refresh llama-benchy \
+  --base-url http://HEAD_IP:8000/v1 \
+  --depth 4096 8192 16384 \
+  --latency-mode generation \
+  --concurrency 1 2 4 \
+  --tg 128 \
+  --model local-inference-lab/GLM-5.3-Flash-NVFP4
+```
+
+The coherence test passed. The measured generation latency before the sweep was 217.50 ms.
+
+| model                                   |                 test |     t/s (total) |        t/s (req) |     peak t/s |   peak t/s (req) |           ttfr (ms) |        est_ppt (ms) |       e2e_ttft (ms) |
+|:----------------------------------------|---------------------:|----------------:|-----------------:|-------------:|-----------------:|--------------------:|--------------------:|--------------------:|
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  pp2048 @ d4096 (c1) | 1898.20 ± 14.25 |  1898.20 ± 14.25 |              |                  |     3454.43 ± 24.42 |     3236.93 ± 24.42 |     3454.43 ± 24.42 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |   tg128 @ d4096 (c1) |    30.21 ± 1.95 |     30.21 ± 1.95 | 38.33 ± 2.49 |     38.33 ± 2.49 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  pp2048 @ d4096 (c2) |  1766.26 ± 7.91 | 1276.15 ± 388.10 |              |                  |   5482.85 ± 1501.62 |   5265.34 ± 1501.62 |   5482.85 ± 1501.62 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |   tg128 @ d4096 (c2) |    28.38 ± 0.47 |     19.38 ± 5.42 | 55.00 ± 4.32 |     29.17 ± 1.95 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  pp2048 @ d4096 (c4) |  1768.19 ± 3.90 |  975.00 ± 572.53 |              |                  |   8635.03 ± 3905.91 |   8417.53 ± 3905.91 |   8635.03 ± 3905.91 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |   tg128 @ d4096 (c4) |    28.99 ± 0.62 |     11.92 ± 4.23 | 89.67 ± 6.34 |     24.50 ± 0.65 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  pp2048 @ d8192 (c1) | 1879.95 ± 11.71 |  1879.95 ± 11.71 |              |                  |     5664.68 ± 33.79 |     5447.18 ± 33.79 |     5699.87 ± 16.39 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |   tg128 @ d8192 (c1) |    28.92 ± 2.21 |     28.92 ± 2.21 | 36.00 ± 1.41 |     36.00 ± 1.41 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  pp2048 @ d8192 (c2) |  1806.21 ± 0.99 | 1281.22 ± 360.45 |              |                  |   8896.83 ± 2441.78 |   8679.32 ± 2441.78 |   8896.83 ± 2441.78 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |   tg128 @ d8192 (c2) |    24.41 ± 0.78 |     18.13 ± 5.06 | 60.00 ± 2.83 |     31.67 ± 1.60 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  pp2048 @ d8192 (c4) |  1762.06 ± 2.57 |  893.73 ± 455.93 |              |                  |  14633.69 ± 6220.29 |  14416.19 ± 6220.29 |  14920.55 ± 6242.42 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |   tg128 @ d8192 (c4) |    20.63 ± 0.65 |      9.89 ± 4.43 | 80.00 ± 6.68 |     23.25 ± 1.23 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 | pp2048 @ d16384 (c1) |  1877.83 ± 7.37 |   1877.83 ± 7.37 |              |                  |    10033.21 ± 38.61 |     9815.71 ± 38.61 |    10033.21 ± 38.61 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  tg128 @ d16384 (c1) |    30.98 ± 2.15 |     30.98 ± 2.15 | 41.33 ± 2.87 |     41.33 ± 2.87 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 | pp2048 @ d16384 (c2) |  1792.28 ± 1.96 | 1323.80 ± 418.08 |              |                  |  15683.62 ± 4884.46 |  15466.12 ± 4884.46 |  15683.62 ± 4884.46 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  tg128 @ d16384 (c2) |    17.30 ± 0.14 |     17.42 ± 8.48 | 60.00 ± 4.08 |     32.17 ± 1.95 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 | pp2048 @ d16384 (c4) |  1763.86 ± 1.84 |  908.39 ± 504.13 |              |                  | 26498.28 ± 11579.98 | 26280.78 ± 11579.98 | 26791.70 ± 11195.05 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  tg128 @ d16384 (c4) |    13.48 ± 0.15 |      8.54 ± 5.77 | 79.33 ± 8.99 |     23.83 ± 1.52 |                     |                     |                     |
+
+### TG128 versus TG512
+
+Total generation throughput in tokens/s:
+
+| Depth | Concurrency | TG128 | TG512 | Difference (TG128 − TG512) |
+|---:|---:|---:|---:|---:|
+| 4,096 | 1 | 30.21 | 26.36 | +3.85 |
+| 4,096 | 2 | 28.38 | 38.21 | −9.83 |
+| 4,096 | 4 | 28.99 | 44.98 | −15.99 |
+| 8,192 | 1 | 28.92 | 30.78 | −1.86 |
+| 8,192 | 2 | 24.41 | 35.43 | −11.02 |
+| 8,192 | 4 | 20.63 | 40.15 | −19.52 |
+| 16,384 | 1 | 30.98 | 29.45 | +1.53 |
+| 16,384 | 2 | 17.30 | 31.39 | −14.09 |
+| 16,384 | 4 | 13.48 | 32.65 | −19.17 |
+
+Single-request TG128 and TG512 throughput was comparable: each generation length led in some cells. With concurrency 2 and 4, TG512 produced higher total throughput in every cell, with the gap increasing at longer context depth. Because the deployment was unchanged, this comparison measures the effect of benchmark generation length and scheduling duration rather than a server configuration change.
