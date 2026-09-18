@@ -1,4 +1,6 @@
-# R26.2 quality isolation benchmark
+# Benchmark results
+
+## R26.2 quality isolation benchmark
 
 Date: 2026-09-11
 
@@ -14,7 +16,7 @@ uvx --refresh llama-benchy \
   --model local-inference-lab/GLM-5.3-Flash-NVFP4
 ```
 
-## Prefill throughput
+### Prefill throughput
 
 Total prompt-processing tokens per second.
 
@@ -27,7 +29,7 @@ Total prompt-processing tokens per second.
 | 8,192 | 2 | 1,775.23 | 1,327.58 | 1,801.05 |
 | 8,192 | 4 | 1,806.12 | 1,346.29 | 1,826.47 |
 
-## Generation throughput
+### Generation throughput
 
 Total generation tokens per second.
 
@@ -40,7 +42,7 @@ Total generation tokens per second.
 | 8,192 | 2 | 23.27 | 19.60 | 23.82 |
 | 8,192 | 4 | 20.65 | 17.02 | 21.11 |
 
-## Production verification runs
+### Production verification runs
 
 These results were collected from the qualified R26.2 quality deployment. The first run measures one request at progressively larger context depths.
 
@@ -76,7 +78,7 @@ The second run measures concurrency 1, 2, and 4 at 4K and 8K depth.
 | local-inference-lab/GLM-5.3-Flash-NVFP4 | pp2048 @ d8192 (c4) | 1796.45 ± 17.23 | 857.08 ± 449.31 | | | 15191.66 ± 6132.97 | 14988.60 ± 6132.97 | 15191.66 ± 6132.97 |
 | local-inference-lab/GLM-5.3-Flash-NVFP4 | tg128 @ d8192 (c4) | 19.65 ± 0.73 | 9.54 ± 3.80 | 72.33 ± 3.40 | 21.42 ± 1.75 | | | |
 
-## Tool-use quality benchmark
+### Tool-use quality benchmark
 
 The qualified deployment was also evaluated with `tool-eval-bench 2.6.1.dev65+g6be685f0e`. The server reported vLLM `0.26.1rc0+jj.glm53.r26.universal.arm64.sm121.cu132.20260905` and a 524,288-token maximum context.
 
@@ -98,6 +100,10 @@ The qualified deployment was also evaluated with `tool-eval-bench 2.6.1.dev65+g6
 
 Each scenario awards two points for a pass, one for a partial result, and zero for a failure. The quality score is the earned-point percentage. The responsiveness score follows the benchmark's logistic latency curve.
 
+### Qualification result
+
+Restoring the exact R26.1 B12X package recovered 379–490 total prefill tokens/s relative to the R26.2 BF16 arm. The qualified image retains vLLM #665, #701, #706, and #715 while excluding vLLM #727 and B12X #353/#354. It matched or exceeded R26.1 prefill in four of six cells and generation in five of six cells.
+
 ## R26.3 minimal candidate
 
 On 2026-09-16, the R26.3 minimal candidate added vLLM #767/#769 and B12X #362 to the qualified R26.2 quality image. It retained the same model revision and serving configuration. Two full llama-benchy sweeps passed coherence and completed without runtime errors.
@@ -112,10 +118,6 @@ On 2026-09-16, the R26.3 minimal candidate added vLLM #767/#769 and B12X #362 to
 | 8192 c4 | 1796.45 | 1807.45 | 1792.02 | 19.65 | 18.66 | 19.99 |
 
 The warm R26.3 run roughly matched R26.2 prefill, but generation was mixed and lower in four of six cells. vLLM #769 is therefore compatible on TP2 GB10 but is not a demonstrated end-to-end speed improvement for this deployment. The candidate remains valuable for the vLLM #767 tool-truncation and B12X #362 MXFP8 bounds fixes.
-
-## Result
-
-Restoring the exact R26.1 B12X package recovered 379–490 total prefill tokens/s relative to the R26.2 BF16 arm. The qualified image retains vLLM #665, #701, #706, and #715 while excluding vLLM #727 and B12X #353/#354. It matched or exceeded R26.1 prefill in four of six cells and generation in five of six cells.
 
 ## R26.3 one-million-context production profile
 
@@ -132,9 +134,11 @@ On 2026-09-17, the current non-Spark revision `175ae8ce3b5af842b0d0140dbeb43e9cf
 - B12X target attention, linear, MoE and KDA prefill
 - full and piecewise CUDA graph capture
 
+### Matched Spark and non-Spark comparison
+
 The Spark and non-Spark arms used the same R26.3 image and configuration. Only the model checkpoint changed.
 
-| Depth | Concurrency | Spark PP | Non-Spark PP | Spark TG | Non-Spark TG | Spark TTFR ms | Non-Spark TTFR ms |
+| Depth | Concurrency | Spark PP | Non-Spark PP | Spark TG | Non-Spark TG | Spark TTFR (ms) | Non-Spark TTFR (ms) |
 |---:|---:|---:|---:|---:|---:|---:|---:|
 | 4,096 | 1 | 1,760.59 | 1,678.19 | 28.57 | 31.09 | 3,667.78 | 3,855.86 |
 | 4,096 | 2 | 1,807.96 | 1,760.55 | 25.84 | 29.09 | 5,090.11 | 5,240.97 |
@@ -142,6 +146,56 @@ The Spark and non-Spark arms used the same R26.3 image and configuration. Only t
 | 8,192 | 1 | 1,901.81 | 1,873.13 | 29.47 | 31.62 | 5,549.01 | 5,659.05 |
 | 8,192 | 2 | 1,843.96 | 1,809.84 | 22.79 | 24.26 | 8,710.05 | 8,872.79 |
 | 8,192 | 4 | 1,796.82 | 1,740.44 | 20.36 | 21.34 | 14,334.43 | 14,890.66 |
-| Average | | 1,818.93 | 1,765.00 | 25.36 | 27.56 | | |
+| **Average** | | **1,818.93** | **1,765.00** | **25.36** | **27.56** | | |
 
 The non-Spark checkpoint generated faster in all six cells. Spark retained higher prefill and lower TTFR. Non-Spark MTP draft acceptance was commonly 52–65%, with the third draft position frequently accepted 31–52%; this made MTP3 materially more effective for decode than on the Spark checkpoint. Both coherence checks passed and neither arm produced CUDA, OOM, traceback or service errors.
+
+### Non-Spark long-context run
+
+These results were collected from the qualified R26.3 non-Spark deployment. This run measures one request at progressively larger context depths, using a 2,048-token prompt-processing sample and 512 generated tokens.
+
+| model                                      |             test |              t/s |     peak t/s |            ttfr (ms) |         est_ppt (ms) |        e2e_ttft (ms) |
+|:-------------------------------------------|-----------------:|-----------------:|-------------:|---------------------:|---------------------:|---------------------:|
+| local-inference-lab/GLM-5.3-Flash-NVFP4    |   pp2048 @ d4096 |  1657.92 ± 78.56 |              |     3525.13 ± 141.52 |     3339.37 ± 141.52 |     3525.13 ± 141.52 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    |    tg512 @ d4096 |     29.77 ± 2.26 | 42.67 ± 1.25 |                      |                      |                      |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    |   pp2048 @ d8192 |  1766.63 ± 21.32 |              |      5310.22 ± 66.78 |      5124.46 ± 66.78 |      5310.22 ± 66.78 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    |    tg512 @ d8192 |     30.85 ± 0.97 | 42.67 ± 2.49 |                      |                      |                      |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    |  pp2048 @ d16384 | 1792.35 ± 178.22 |              |    9368.27 ± 1099.26 |    9182.51 ± 1099.26 |    9386.94 ± 1125.65 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    |   tg512 @ d16384 |     26.80 ± 3.82 | 41.00 ± 2.45 |                      |                      |                      |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    |  pp2048 @ d32768 |   1874.71 ± 1.40 |              |    16795.57 ± 104.70 |    16609.82 ± 104.70 |    16813.21 ± 122.06 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    |   tg512 @ d32768 |     28.09 ± 3.60 | 39.67 ± 2.62 |                      |                      |                      |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    |  pp2048 @ d65536 |   1862.19 ± 0.28 |              |     32366.90 ± 65.06 |     32181.14 ± 65.06 |    32440.13 ± 141.73 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    |   tg512 @ d65536 |     27.23 ± 3.06 | 38.67 ± 4.11 |                      |                      |                      |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    | pp2048 @ d131072 |   1835.00 ± 1.42 |              |     64663.42 ± 15.21 |     64477.66 ± 15.21 |     64663.42 ± 15.21 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    |  tg512 @ d131072 |     27.93 ± 1.09 | 41.33 ± 1.70 |                      |                      |                      |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    | pp2048 @ d262144 |   1775.35 ± 1.30 |              |   132001.31 ± 114.48 |   131815.55 ± 114.48 |   132001.31 ± 114.48 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    |  tg512 @ d262144 |     38.04 ± 4.69 | 46.33 ± 1.70 |                      |                      |                      |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    | pp2048 @ d524288 |    388.42 ± 0.60 |              | 1201452.71 ± 2324.39 | 1201266.95 ± 2324.39 | 1201452.71 ± 2324.39 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4    |  tg512 @ d524288 |     28.95 ± 1.14 | 47.00 ± 5.66 |                      |                      |                      |
+
+Prefill remained between 1,657.92 and 1,874.71 tokens/s through 262K depth, then fell to 388.42 tokens/s at 524K. Generation stayed between 26.80 and 38.04 tokens/s across the tested depths. The 524K prefill result should be treated as a distinct long-context behavior rather than combined with the shorter-depth average.
+
+### Non-Spark concurrency run
+
+This run measures concurrency 1, 2, and 4 at 4K, 8K, and 16K depth, using a 2,048-token prompt-processing sample and 512 generated tokens.
+
+| model                                   |                 test |     t/s (total) |        t/s (req) |     peak t/s |   peak t/s (req) |           ttfr (ms) |        est_ppt (ms) |       e2e_ttft (ms) |
+|:----------------------------------------|---------------------:|----------------:|-----------------:|-------------:|-----------------:|--------------------:|--------------------:|--------------------:|
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  pp2048 @ d4096 (c1) | 1869.30 ± 18.55 |  1869.30 ± 18.55 |              |                  |     3470.02 ± 32.46 |     3287.12 ± 32.46 |     3506.71 ± 22.35 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |   tg512 @ d4096 (c1) |    26.36 ± 3.98 |     26.36 ± 3.98 | 37.67 ± 5.79 |     37.67 ± 5.79 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  pp2048 @ d4096 (c2) | 1772.59 ± 11.99 | 1274.10 ± 389.34 |              |                  |   5458.41 ± 1503.98 |   5275.51 ± 1503.98 |   5458.41 ± 1503.98 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |   tg512 @ d4096 (c2) |    38.21 ± 0.60 |     20.89 ± 1.25 | 64.67 ± 2.05 |     33.17 ± 1.21 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  pp2048 @ d4096 (c4) |  1766.78 ± 1.66 |  918.14 ± 518.09 |              |                  |   8869.44 ± 3823.61 |   8686.54 ± 3823.61 |   9010.34 ± 3646.89 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |   tg512 @ d4096 (c4) |    44.98 ± 3.45 |     13.52 ± 1.57 | 82.00 ± 7.79 |     24.08 ± 0.76 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  pp2048 @ d8192 (c1) | 1845.96 ± 18.87 |  1845.96 ± 18.87 |              |                  |     5730.73 ± 57.13 |     5547.83 ± 57.13 |     5730.73 ± 57.13 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |   tg512 @ d8192 (c1) |    30.78 ± 1.39 |     30.78 ± 1.39 | 44.00 ± 0.00 |     44.00 ± 0.00 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  pp2048 @ d8192 (c2) |  1808.67 ± 2.70 | 1278.39 ± 359.21 |              |                  |   8879.60 ± 2443.67 |   8696.69 ± 2443.67 |   8879.60 ± 2443.67 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |   tg512 @ d8192 (c2) |    35.43 ± 2.84 |     20.45 ± 2.32 | 60.33 ± 5.19 |     34.33 ± 1.49 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  pp2048 @ d8192 (c4) |  1765.40 ± 3.02 |  896.58 ± 457.35 |              |                  |  14553.52 ± 6202.62 |  14370.61 ± 6202.62 |  14712.28 ± 6047.03 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |   tg512 @ d8192 (c4) |    40.15 ± 1.97 |     12.81 ± 1.85 | 82.67 ± 5.56 |     24.75 ± 1.42 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 | pp2048 @ d16384 (c1) |  1874.34 ± 1.21 |   1874.34 ± 1.21 |              |                  |     10016.78 ± 6.34 |      9833.88 ± 6.34 |     10016.78 ± 6.34 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  tg512 @ d16384 (c1) |    29.45 ± 1.04 |     29.45 ± 1.04 | 41.67 ± 2.36 |     41.67 ± 2.36 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 | pp2048 @ d16384 (c2) |  1790.21 ± 1.97 | 1317.40 ± 414.27 |              |                  |  15709.46 ± 4882.54 |  15526.55 ± 4882.54 |  15709.46 ± 4882.54 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  tg512 @ d16384 (c2) |    31.39 ± 1.62 |     19.87 ± 4.35 | 62.00 ± 0.82 |     32.67 ± 1.25 |                     |                     |                     |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 | pp2048 @ d16384 (c4) |  1766.36 ± 0.14 |  908.16 ± 503.22 |              |                  | 26453.85 ± 11567.27 | 26270.95 ± 11567.27 | 26453.85 ± 11567.27 |
+| local-inference-lab/GLM-5.3-Flash-NVFP4 |  tg512 @ d16384 (c4) |    32.65 ± 0.26 |     11.95 ± 2.80 | 85.67 ± 2.62 |     25.75 ± 2.35 |                     |                     |                     |
