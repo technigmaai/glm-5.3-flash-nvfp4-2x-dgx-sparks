@@ -2,15 +2,15 @@
 
 This repository contains a two-node deployment for [`local-inference-lab/GLM-5.3-Flash-NVFP4`](https://huggingface.co/local-inference-lab/GLM-5.3-Flash-NVFP4) on two NVIDIA DGX Spark systems. It runs one GB10 GPU per node with tensor parallelism 2 over RoCE and exposes an OpenAI-compatible vLLM API on port 8000.
 
-The current qualified profile uses the R26.3 minimal ARM64 image, a 1,047,552-token maximum context, MTP3, a Marlin MXFP8 draft path, an NVFP4 draft vocabulary head, local argmax reduction and RoCEnante custom collectives. Client requests control temperature, `top_p` and reasoning effort.
+The current production profile uses the R26.4 combined ARM64 image, a 1,047,552-token maximum context, MTP3, a Marlin MXFP8 draft path, an NVFP4 draft vocabulary head, local argmax reduction and RoCEnante custom collectives. Client requests control temperature, `top_p` and reasoning effort.
 
 ## Current qualified profile
 
 | Setting | Value |
 |---|---|
-| Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r26.3-minimal-arm64-sm121` |
-| Docker Hub index digest | `sha256:b691df035abd9255b4ee9ebbb07ceeb8914ab2a550597c548dff3a8bd5f8b464` |
-| ARM64 manifest digest | `sha256:63579eb51013ad63af46919993d668516cab2c3cc1205e47f0610f6fea2ff5c7` |
+| Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r26.4-combined-experimental-arm64-sm121` |
+| Docker Hub index digest | `sha256:fbd81e3710141ac29975d0d689c176c82d33554ee24a974bfdbff4baacbde257` |
+| ARM64 manifest digest | `sha256:1f0b05ce5669929e379763bb44d9d6bb7061ac4683a5b1830391dd18956f83bc` |
 | Model | `local-inference-lab/GLM-5.3-Flash-NVFP4` |
 | Model revision | `175ae8ce3b5af842b0d0140dbeb43e9cfc557c49` |
 | Tensor parallelism | 2 nodes × 1 GPU |
@@ -40,7 +40,7 @@ Temperature, `top_p`, and reasoning effort are intentionally not server defaults
 
 ## Runtime and patches
 
-R26.3 is a small source overlay on the published R26.2 ARM64 image. It keeps CUDA 13.2, PyTorch 2.13.0, NCCL 2.30.4, FlashInfer 0.6.18, InstantTensor 0.1.9 and the qualified R26.2 compiled runtime.
+R26.4 is a small source overlay on the published R26.3 ARM64 image. It keeps CUDA 13.2, PyTorch 2.13.0, NCCL 2.30.4, FlashInfer 0.6.18, InstantTensor 0.1.9 and the qualified R26.2 compiled runtime.
 
 | Project | Change | Purpose |
 |---|---|---|
@@ -50,10 +50,12 @@ R26.3 is a small source overlay on the published R26.2 ARM64 image. It keeps CUD
 | vLLM | #767 | preserve `finish_reason="length"` for truncated automatic tool calls |
 | vLLM | #769 | distribute MoE startup-tuning routes across experts |
 | B12X | #362 | bound MXFP8 scale reads for padded persistent tiles |
+| MiaAI-Lab | #215 | prevent tool-call emission when clients request `tool_choice: "none"` |
+| B12X | #280 | enable the existing M8 parallel route packer and split compute path |
 | B12X | #353, #354 | excluded after measured TP2 GB10 prefill regression |
 | vLLM | #727 | excluded because it depends on B12X #354 |
 
-The exact R26.3 overlay and patch provenance are in [`image/r26.3-minimal/`](image/r26.3-minimal). The published R26.2 base image remains available as `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r26.2-quality-bf16-arm64-sm121`.
+The exact R26.4 overlay and patch provenance are in [`image/r26.4-combined-experimental/`](image/r26.4-combined-experimental). The R26.3 base remains available as `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r26.3-minimal-arm64-sm121`.
 
 ## Build and deploy
 
@@ -62,18 +64,21 @@ Install Docker with the NVIDIA container runtime on both ARM64 DGX Spark nodes. 
 ```bash
 git clone https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks.git
 cd glm-5.3-flash-nvfp4-2x-dgx-sparks
-docker pull technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r26.3-minimal-arm64-sm121
+docker pull technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r26.4-combined-experimental-arm64-sm121
 cp .env.example .env
 # Edit cache paths, RoCE interfaces, addresses, SSH target, and worker path.
 ./start.sh
 ```
 
-To reproduce the image locally from the published R26.2 base:
+To reproduce the image locally from the published R26.3 base:
 
 ```bash
-cd image/r26.3-minimal
+cd image/r26.4-combined-experimental
 ./build.sh
-python validate_r263_runtime.py
+docker run --rm --entrypoint python \
+  -v "$PWD/validate_r264_runtime.py:/tmp/validate_r264_runtime.py:ro" \
+  local/vllm:glm53-r26.4-combined-experimental-arm64-sm121 \
+  /tmp/validate_r264_runtime.py
 ```
 
 `start.sh` syncs the repository to the worker, starts rank 1 first, waits 15 seconds, and starts rank 0. It does not copy `.git`, `logs/`, or `tmp/`.
