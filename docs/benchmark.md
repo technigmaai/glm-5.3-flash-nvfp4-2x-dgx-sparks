@@ -2,6 +2,42 @@
 
 This document keeps the qualified production measurements and the historical comparisons that explain the selected image and model. Unless stated otherwise, performance tests used `llama-benchy 0.4.0` from a separate RTX client. PP is total prompt-processing throughput, TG is generation throughput, and TTFR is time to first response.
 
+## R27.0-A fused MTP baseline
+
+Qualified on 2026-09-19 with image `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r27.0-a-pr57443-arm64-sm121` and non-Spark model revision `175ae8ce3b5af842b0d0140dbeb43e9cfc557c49`.
+
+R27.0-A backports the applicable runtime portion of upstream vLLM PR #57443 onto R26.4. Sparse-indexer metadata is built once and updated in place across fused MTP draft steps. The serving configuration remained unchanged: TP2/DCP1, MTP3, 1,047,552-token context, fixed 11,700 MiB FP8 KV cache per rank, split target page 1,024, four maximum sequences and 4,096 maximum batched tokens.
+
+The published OCI index digest is `sha256:f1b6af40c1421204d8901a108a1ff712b58b085b8e1c8111ebc1be389fc9dbf3`; its Linux ARM64 manifest is `sha256:a62b9904bf47c34831aa746e170ee397e9f225699167a7b4116f3baf3ac9d9ae`.
+
+All three sweeps passed coherence and completed without CUDA, OOM, traceback or service errors. Run 1 contained a noisy d4096/c1 prefill sample; runs 2 and 3 were clean warm repeats.
+
+### Three-run results
+
+| Depth | Concurrency | Run 1 PP | Run 2 PP | Run 3 PP | Run 1 TG | Run 2 TG | Run 3 TG |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 4,096 | 1 | 1,636.06 | 1,871.70 | 1,877.20 | 30.19 | 27.59 | 31.45 |
+| 4,096 | 2 | 1,758.62 | 1,770.96 | 1,762.97 | 27.53 | 28.28 | 30.52 |
+| 4,096 | 4 | 1,717.07 | 1,762.21 | 1,759.94 | 28.16 | 29.57 | 28.54 |
+| 8,192 | 1 | 1,868.67 | 1,872.98 | 1,863.59 | 33.86 | 30.25 | 30.52 |
+| 8,192 | 2 | 1,802.39 | 1,799.60 | 1,794.69 | 23.53 | 26.16 | 22.76 |
+| 8,192 | 4 | 1,758.45 | 1,762.08 | 1,763.20 | 21.11 | 21.31 | 21.27 |
+
+### Warm-run comparison with R26.4
+
+The R27.0-A values below are the arithmetic mean of runs 2 and 3. The standing R26.4 reference used the same checkpoint, MTP3 depth, batch budget, context limit and cache geometry.
+
+| Depth | Concurrency | R26.4 PP | R27.0-A PP | R26.4 TG | R27.0-A TG |
+|---:|---:|---:|---:|---:|---:|
+| 4,096 | 1 | 1,857.03 | 1,874.45 | 27.91 | 29.52 |
+| 4,096 | 2 | 1,749.94 | 1,766.97 | 26.15 | 29.40 |
+| 4,096 | 4 | 1,759.26 | 1,761.08 | 26.68 | 29.06 |
+| 8,192 | 1 | 1,867.49 | 1,868.29 | 27.36 | 30.39 |
+| 8,192 | 2 | 1,791.68 | 1,797.15 | 24.15 | 24.46 |
+| 8,192 | 4 | 1,796.45 | 1,762.64 | 19.65 | 21.29 |
+
+R27.0-A improved warm-run TG in every cell. Prefill remained effectively level through d8192/c2 and was lower at d8192/c4. This profile is the new qualified baseline; R26.4 remains the rollback image.
+
 ## R26.3 production profile
 
 Qualified on 2026-09-17 with image `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r26.3-minimal-arm64-sm121` and non-Spark model revision `175ae8ce3b5af842b0d0140dbeb43e9cfc557c49`.

@@ -1,10 +1,12 @@
 .env
 .env.*
+.env-*
 !.env.example
 .DS_Store
 logs/
 tmp/
 evaluations/
+profiles/
 benchmark-results/raw/
 *.log
 *.tar

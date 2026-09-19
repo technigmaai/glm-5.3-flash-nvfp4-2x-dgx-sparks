@@ -92,7 +92,7 @@ services:
       MODEL_PATH: ${MODEL_PATH:?set MODEL_PATH in .env}
       MODEL_REVISION: "${MODEL_REVISION:?set MODEL_REVISION in .env}"
       SERVED_MODEL_NAME: ${SERVED_MODEL_NAME:-glm53-flash}
-      CHAT_TEMPLATE: ${CHAT_TEMPLATE:-/opt/glm53/chat_template.jinja}
+      CHAT_TEMPLATE: "${CHAT_TEMPLATE-}"
       PORT: ${PORT:-8000}
       MASTER_PORT: ${MASTER_PORT:-29553}
       GPU_MEM: ${GPU_MEMORY_UTILIZATION:-0.89}
@@ -120,6 +120,12 @@ services:
       TARGET_MOE_BACKEND: ${TARGET_MOE_BACKEND:-b12x}
       ASYNC_SCHEDULING: ${ASYNC_SCHEDULING:-1}
       PREFIX_CACHING: ${PREFIX_CACHING:-1}
+      FAIRNESS_ENGINE: "${FAIRNESS_ENGINE-}"
+      PREFILL_COMPUTE_SHARE: "${PREFILL_COMPUTE_SHARE-}"
+      MAX_NUM_PREFILL_TOKENS_PER_STEP: "${MAX_NUM_PREFILL_TOKENS_PER_STEP-}"
+      MAX_NUM_PARTIAL_PREFILLS: "${MAX_NUM_PARTIAL_PREFILLS:-0}"
+      DECODE_PREFILL_MIN_DECODE_STEPS: "${DECODE_PREFILL_MIN_DECODE_STEPS:-0}"
+      DECODE_PREFILL_MAX_WAIT_MS: "${DECODE_PREFILL_MAX_WAIT_MS:-0}"
       FLASHINFER_AUTOTUNE: ${FLASHINFER_AUTOTUNE:-0}
       CUDAGRAPH_MODE: ${CUDAGRAPH_MODE:-}
       DFLASH_TOKENS: ${DFLASH_TOKENS:-7}
@@ -148,6 +154,8 @@ services:
         # rank 0 serves the API; headless worker (rank 1) drops --host/--port.
         SERVE_NET=""
         if [ -z "$${HEADLESS}" ]; then SERVE_NET="--host 0.0.0.0 --port $${PORT}"; fi
+        CHAT_TEMPLATE_ARGS=""
+        if [ -n "$${CHAT_TEMPLATE}" ]; then CHAT_TEMPLATE_ARGS="--chat-template $${CHAT_TEMPLATE}"; fi
 
         SPEC_ARGS=""
         CACHE_ARGS=""
@@ -156,6 +164,22 @@ services:
           MODEL_LOADER_EXTRA_ARGS='--model-loader-extra-config {"instanttensor_copy":false,"instanttensor_distributed":false}'
         fi
         if [ "$${PREFIX_CACHING}" = "1" ]; then CACHE_ARGS="--enable-prefix-caching"; fi
+        FAIRNESS_ARGS=""
+        case "$${FAIRNESS_ENGINE}" in
+          "") ;;
+          compute_share)
+            [ -n "$${PREFILL_COMPUTE_SHARE}" ] || { echo "[glm53] PREFILL_COMPUTE_SHARE is required" >&2; exit 2; }
+            FAIRNESS_ARGS="--fairness-engine compute_share --prefill-compute-share $${PREFILL_COMPUTE_SHARE}"
+            ;;
+          micro_slicing)
+            [ -n "$${MAX_NUM_PREFILL_TOKENS_PER_STEP}" ] || { echo "[glm53] MAX_NUM_PREFILL_TOKENS_PER_STEP is required" >&2; exit 2; }
+            FAIRNESS_ARGS="--fairness-engine micro_slicing --max-num-prefill-tokens-per-step $${MAX_NUM_PREFILL_TOKENS_PER_STEP} --max-num-partial-prefills $${MAX_NUM_PARTIAL_PREFILLS} --decode-prefill-min-decode-steps $${DECODE_PREFILL_MIN_DECODE_STEPS}"
+            if [ "$${DECODE_PREFILL_MAX_WAIT_MS}" != "0" ]; then
+              FAIRNESS_ARGS="$${FAIRNESS_ARGS} --decode-prefill-max-wait-ms $${DECODE_PREFILL_MAX_WAIT_MS}"
+            fi
+            ;;
+          *) echo "[glm53] Unsupported FAIRNESS_ENGINE=$${FAIRNESS_ENGINE}" >&2; exit 2 ;;
+        esac
         KV_CACHE_BYTES="$${KV_CACHE_MEMORY_BYTES}"
         if [ -n "$${GLM53_SPLIT_TARGET_BLOCK_SIZE}" ]; then
           export VLLM_GLM53_SPLIT_TARGET_BLOCK_SIZE="$${GLM53_SPLIT_TARGET_BLOCK_SIZE}"
@@ -199,7 +223,7 @@ services:
         exec vllm serve "$${MODEL_PATH}" \
           --revision "$${MODEL_REVISION}" \
           --served-model-name $${SERVED_MODEL_NAME} \
-          --chat-template "$${CHAT_TEMPLATE}" \
+          $${CHAT_TEMPLATE_ARGS} \
           --trust-remote-code --distributed-executor-backend mp \
           --tensor-parallel-size "$${TP_SIZE}" \
           --decode-context-parallel-size "$${DCP_SIZE}" \
@@ -225,6 +249,7 @@ services:
           --enable-chunked-prefill \
           $${COMPILATION_ARGS} \
           $${CUDAGRAPH_CAPTURE_ARGS} \
+          $${FAIRNESS_ARGS} \
           $${ASYNC_ARGS} \
           $${CACHE_ARGS} \
           $${ALLREDUCE_ARGS} \
