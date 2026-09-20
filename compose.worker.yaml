@@ -116,6 +116,9 @@ services:
       TARGET_MOE_BACKEND: ${TARGET_MOE_BACKEND:-b12x}
       ASYNC_SCHEDULING: ${ASYNC_SCHEDULING:-1}
       PREFIX_CACHING: ${PREFIX_CACHING:-1}
+      PREFIX_MATCH_UNIT: "${PREFIX_MATCH_UNIT-}"
+      ENABLE_PROMPT_TOKENS_DETAILS: "${ENABLE_PROMPT_TOKENS_DETAILS:-0}"
+      MTP_DISABLE_EAGLE_BLOCK_DROP: "${MTP_DISABLE_EAGLE_BLOCK_DROP:-false}"
       FAIRNESS_ENGINE: "${FAIRNESS_ENGINE-}"
       PREFILL_COMPUTE_SHARE: "${PREFILL_COMPUTE_SHARE-}"
       MAX_NUM_PREFILL_TOKENS_PER_STEP: "${MAX_NUM_PREFILL_TOKENS_PER_STEP-}"
@@ -160,6 +163,8 @@ services:
           MODEL_LOADER_EXTRA_ARGS='--model-loader-extra-config {"instanttensor_copy":false,"instanttensor_distributed":false}'
         fi
         if [ "$${PREFIX_CACHING}" = "1" ]; then CACHE_ARGS="--enable-prefix-caching"; fi
+        if [ -n "$${PREFIX_MATCH_UNIT}" ]; then CACHE_ARGS="$${CACHE_ARGS} --prefix-match-unit $${PREFIX_MATCH_UNIT}"; fi
+        if [ "$${ENABLE_PROMPT_TOKENS_DETAILS}" = "1" ]; then CACHE_ARGS="$${CACHE_ARGS} --enable-prompt-tokens-details"; fi
         FAIRNESS_ARGS=""
         case "$${FAIRNESS_ENGINE}" in
           "") ;;
@@ -189,7 +194,7 @@ services:
             ;;
           mtp)
             if [ "$${MTP_TOKENS}" -gt 0 ]; then
-              SPEC_ARGS='--speculative-config {"method":"mtp","num_speculative_tokens":'"$${MTP_TOKENS}"',"moe_backend":"'"$${MTP_MOE_BACKEND}"'","attention_backend":"B12X","use_local_argmax_reduction":'"$${MTP_LOCAL_ARGMAX}"'}'
+              SPEC_ARGS='--speculative-config {"method":"mtp","num_speculative_tokens":'"$${MTP_TOKENS}"',"moe_backend":"'"$${MTP_MOE_BACKEND}"'","attention_backend":"B12X","use_local_argmax_reduction":'"$${MTP_LOCAL_ARGMAX}"',"disable_eagle_block_drop":'"$${MTP_DISABLE_EAGLE_BLOCK_DROP}"'}'
             fi
             ;;
           none) ;;

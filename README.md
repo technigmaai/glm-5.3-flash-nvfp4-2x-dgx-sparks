@@ -2,15 +2,15 @@
 
 This repository contains a two-node deployment for [`local-inference-lab/GLM-5.3-Flash-NVFP4`](https://huggingface.co/local-inference-lab/GLM-5.3-Flash-NVFP4) on two NVIDIA DGX Spark systems. It runs one GB10 GPU per node with tensor parallelism 2 over RoCE and exposes an OpenAI-compatible vLLM API on port 8000.
 
-The current qualified baseline uses the R27.0-A ARM64 image, a 1,047,552-token maximum context, MTP3, a Marlin MXFP8 draft path, an NVFP4 draft vocabulary head, local argmax reduction and RoCEnante custom collectives. R27.0-A adds fused multi-step MTP metadata updates to the R26.4 production stack. Client requests control temperature, `top_p` and reasoning effort.
+The current qualified baseline uses the R27.0-B PMU128 ARM64 image, a 1,047,552-token maximum context, MTP3, a Marlin MXFP8 draft path, an NVFP4 draft vocabulary head, local argmax reduction and RoCEnante custom collectives. R27.0-B keeps the R27.0-A fused-MTP runtime and adds 128-token prefix matching plus safe retention of the final reusable MTP cache block. Client requests control temperature, `top_p` and reasoning effort.
 
 ## Current qualified profile
 
 | Setting | Value |
 |---|---|
-| Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r27.0-a-pr57443-arm64-sm121` |
-| Docker Hub index digest | `sha256:f1b6af40c1421204d8901a108a1ff712b58b085b8e1c8111ebc1be389fc9dbf3` |
-| ARM64 manifest digest | `sha256:a62b9904bf47c34831aa746e170ee397e9f225699167a7b4116f3baf3ac9d9ae` |
+| Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r27.0-b-pmu128-arm64-sm121` |
+| Docker Hub index digest | `sha256:388e0409067656e3f72e2cb23bdad0b2e0ba9d2bfa4daad723c9fa9a7afe920c` |
+| ARM64 manifest digest | `sha256:54b740354fda0707a2c542df804af739dc59ac2b523b6aafc69200ff55d001af` |
 | Model | `local-inference-lab/GLM-5.3-Flash-NVFP4` |
 | Model revision | `175ae8ce3b5af842b0d0140dbeb43e9cfc557c49` |
 | Tensor parallelism | 2 nodes × 1 GPU |
@@ -20,7 +20,7 @@ The current qualified baseline uses the R27.0-A ARM64 image, a 1,047,552-token m
 | Maximum sequences | 4 |
 | Maximum batched tokens | 4,096 |
 | Fixed KV cache | 11,700 MiB per rank, FP8 |
-| Cache geometry | 1,024-token split target pages |
+| Physical cache geometry | 1,024-token split target/recurrent pages |
 | Speculation | MTP3 |
 | MTP expert backend | Marlin, MXFP8 draft experts |
 | MTP vocabulary head | Draft-only NVFP4 copy; target verifier remains BF16 |
@@ -28,7 +28,7 @@ The current qualified baseline uses the R27.0-A ARM64 image, a 1,047,552-token m
 | KDA prefill | B12X |
 | Collectives | RoCEnante up to 2 MiB; PyNCCL fallback above 2 MiB |
 | CUDA graphs | Full and piecewise capture |
-| Prefix cache | Enabled |
+| Prefix cache | Enabled; 128-token match unit; MTP final-block retention |
 | Chunked prefill / async scheduling | Enabled / enabled |
 | Model loading | InstantTensor buffered loader |
 | Tool / reasoning parsers | `glm47` / `glm45` |
@@ -40,7 +40,7 @@ Temperature, `top_p`, and reasoning effort are intentionally not server defaults
 
 ## Runtime and patches
 
-R27.0-A is a Python-only source overlay on the published R26.4 ARM64 image. It keeps CUDA 13.2, PyTorch 2.13.0, NCCL 2.30.4, FlashInfer 0.6.18, InstantTensor 0.1.9, B12X and the qualified compiled runtime unchanged.
+R27.0-B is a Python-only source overlay on the published R27.0-A ARM64 image. It keeps CUDA 13.2, PyTorch 2.13.0, NCCL 2.30.4, FlashInfer 0.6.18, InstantTensor 0.1.9, B12X and the qualified compiled runtime unchanged.
 
 | Project | Change | Purpose |
 |---|---|---|
@@ -53,10 +53,11 @@ R27.0-A is a Python-only source overlay on the published R26.4 ARM64 image. It k
 | MiaAI-Lab | #215 | prevent tool-call emission when clients request `tool_choice: "none"` |
 | B12X | #280 | enable the existing M8 parallel route packer and split compute path |
 | vLLM | #57443 | update sparse-indexer metadata in place across fused MTP draft steps |
+| vLLM / PMU128 recipe | #53388-derived MTP block retention and 128-token match-unit scheduling | improve repeated agent-prefix reuse without changing physical KV pages |
 | B12X | #353, #354 | excluded after measured TP2 GB10 prefill regression |
 | vLLM | #727 | excluded because it depends on B12X #354 |
 
-The exact R27.0-A backport and patch provenance are in [`image/r27.0-a-pr57443/`](image/r27.0-a-pr57443). R26.4 remains available as `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r26.4-combined-experimental-arm64-sm121`.
+The R27.0-B overlay and provenance are in [`image/r27.0-b-pmu128/`](image/r27.0-b-pmu128). R27.0-A remains the immediate rollback image at `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r27.0-a-pr57443-arm64-sm121`; its backport is preserved in [`image/r27.0-a-pr57443/`](image/r27.0-a-pr57443).
 
 The deployment files also include the refreshed MiaAI-Lab chat template used by the qualified service. It emits a reasoning-effort system marker only when thinking is enabled and handles empty content and interleaved tool responses more defensively. The compose files make the custom template optional and expose disabled-by-default fairness controls for future compute-share and micro-slicing experiments.
 
@@ -67,21 +68,20 @@ Install Docker with the NVIDIA container runtime on both ARM64 DGX Spark nodes. 
 ```bash
 git clone https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks.git
 cd glm-5.3-flash-nvfp4-2x-dgx-sparks
-docker pull technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r27.0-a-pr57443-arm64-sm121
+docker pull technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r27.0-b-pmu128-arm64-sm121
 cp .env.example .env
 # Edit cache paths, RoCE interfaces, addresses, SSH target, and worker path.
 ./start.sh
 ```
 
-To reproduce the image locally from the published R26.4 base:
+To reproduce the image locally from the published R27.0-A base:
 
 ```bash
-cd image/r27.0-a-pr57443
+cd image/r27.0-b-pmu128
 ./build.sh
-docker run --rm --entrypoint python \
-  -v "$PWD/validate_r270a_runtime.py:/tmp/validate_r270a_runtime.py:ro" \
-  local/vllm:glm53-r27.0-a-pr57443-arm64-sm121 \
-  /tmp/validate_r270a_runtime.py
+docker run --rm --entrypoint python3 \
+  local/vllm:glm53-r27.0-b-pmu128-arm64-sm121 \
+  /opt/glm53-patches/apply_pmu128_patch.py --verify
 ```
 
 `start.sh` syncs the repository to the worker, starts rank 1 first, waits 15 seconds, and starts rank 0. It does not copy `.git`, `logs/`, or `tmp/`.
@@ -101,7 +101,7 @@ The benchmark ran from a separate RTX client using llama-benchy 0.4.0. Coherence
 ```bash
 uvx --refresh llama-benchy \
   --base-url http://HEAD_IP:8000/v1 \
-  --depth 4096 8192 \
+  --depth 0 4096 8192 \
   --latency-mode generation \
   --concurrency 1 2 4 \
   --tg 128 \
@@ -110,14 +110,17 @@ uvx --refresh llama-benchy \
 
 | Depth | Concurrency | Prefill t/s | Generation t/s | TTFR ms |
 |---:|---:|---:|---:|---:|
-| 4,096 | 1 | 1,877.20 | 31.45 | 3,460.16 |
-| 4,096 | 2 | 1,762.97 | 30.52 | 5,452.81 |
-| 4,096 | 4 | 1,759.94 | 28.54 | 8,883.86 |
-| 8,192 | 1 | 1,863.59 | 30.52 | 5,682.68 |
-| 8,192 | 2 | 1,794.69 | 22.76 | 8,868.93 |
-| 8,192 | 4 | 1,763.20 | 21.27 | 14,581.44 |
+| 0 | 1 | 1,638 | 33.5 | 1,415 |
+| 0 | 2 | 1,746 | 49.9 | 2,359 |
+| 0 | 4 | 1,656 | 54.3 | 4,136 |
+| 4,096 | 1 | 1,765 | 33.8 | 3,647 |
+| 4,096 | 2 | 1,710 | 42.8 | 6,789 |
+| 4,096 | 4 | 1,724 | 32.3 | 10,708 |
+| 8,192 | 1 | 1,799 | 35.4 | 5,857 |
+| 8,192 | 2 | 1,767 | 30.7 | 9,929 |
+| 8,192 | 4 | 1,738 | 23.1 | 16,049 |
 
-This third R27.0-A run followed two earlier successful sweeps. The two warm runs retained R26.4-class prefill and raised total generation throughput in all six comparison cells, with the d8192/c2 change small enough to treat as effectively unchanged. Detailed three-run results and the R26.4 comparison are in [`docs/benchmark.md`](docs/benchmark.md).
+In the latest matched A/B run, R27.0-B raised total TG in all nine cells. At c2 it moved from 43.2 to 49.9 t/s at d0, 29.6 to 42.8 at d4096, and 24.4 to 30.7 at d8192. Prefill was generally lower, while an identical 13,505-token prompt reused 13,440 tokens on its second request and fell from 7.523 seconds to 0.289 seconds. Because 13,440 is divisible by 128 but not 1,024, this directly verifies fine-grained PMU128 matching. Detailed results and the R27.0-A comparison are in [`docs/benchmark.md`](docs/benchmark.md).
 
 ## Repository contents
 

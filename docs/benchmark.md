@@ -2,6 +2,48 @@
 
 This document keeps the qualified production measurements and the historical comparisons that explain the selected image and model. Unless stated otherwise, performance tests used `llama-benchy 0.4.0` from a separate RTX client. PP is total prompt-processing throughput, TG is generation throughput, and TTFR is time to first response.
 
+## R27.0-B PMU128 production profile
+
+Qualified on 2026-09-20 with image `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r27.0-b-pmu128-arm64-sm121` and model revision `175ae8ce3b5af842b0d0140dbeb43e9cfc557c49`.
+
+R27.0-B is a small Python overlay on R27.0-A. It retains the proven 1,024-token physical split-page geometry and adds a 128-token prefix match unit plus safe MTP final-cache-block retention. The OCI index digest is `sha256:388e0409067656e3f72e2cb23bdad0b2e0ba9d2bfa4daad723c9fa9a7afe920c`; the Linux ARM64 manifest is `sha256:54b740354fda0707a2c542df804af739dc59ac2b523b6aafc69200ff55d001af`.
+
+An identical raw-completions prompt proved fine-grained cache reuse:
+
+| Request | Prompt tokens | Cached tokens | Elapsed |
+|---|---:|---:|---:|
+| First/cold | 13,505 | 0 | 7.523 s |
+| Identical second/warm | 13,505 | 13,440 | 0.289 s |
+
+The second of two complete production sweeps is shown below. Both passed coherence and completed without CUDA, OOM, traceback, distributed, or cache-coordinator errors.
+
+| Depth | Concurrency | PP total | TG total | TG/request | TTFR ms |
+|---:|---:|---:|---:|---:|---:|
+| 4,096 | 1 | 1,809.53 | 30.98 | 30.98 | 3,571.36 |
+| 4,096 | 2 | 1,738.99 | 29.94 | 19.75 | 5,557.75 |
+| 4,096 | 4 | 1,746.73 | 29.38 | 11.97 | 9,393.23 |
+| 8,192 | 1 | 1,863.31 | 31.55 | 31.55 | 5,671.48 |
+| 8,192 | 2 | 1,794.76 | 25.38 | 19.29 | 8,941.67 |
+| 8,192 | 4 | 1,749.72 | 21.21 | 10.26 | 14,716.68 |
+
+### Latest matched R27.0-A versus R27.0-B run
+
+This separate compact llama-benchy A/B used the same 2,048-token prefill sample, 128 generated tokens, depths, and concurrency levels for both images. TG values are total throughput across the active requests.
+
+| Depth | C | A PP | B PP | A TG | B TG | A TTFT ms | B TTFT ms |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0 | 1 | 1,833 | 1,638 | 32.5 | 33.5 | 1,287 | 1,415 |
+| 0 | 2 | 1,568 | 1,746 | 43.2 | 49.9 | 2,098 | 2,359 |
+| 0 | 4 | 1,731 | 1,656 | 50.4 | 54.3 | 3,400 | 4,136 |
+| 4,096 | 1 | 1,856 | 1,765 | 31.8 | 33.8 | 3,479 | 3,647 |
+| 4,096 | 2 | 1,764 | 1,710 | 29.6 | 42.8 | 5,353 | 6,789 |
+| 4,096 | 4 | 1,760 | 1,724 | 30.5 | 32.3 | 9,118 | 10,708 |
+| 8,192 | 1 | 1,866 | 1,799 | 32.9 | 35.4 | 5,658 | 5,857 |
+| 8,192 | 2 | 1,807 | 1,767 | 24.4 | 30.7 | 8,676 | 9,929 |
+| 8,192 | 4 | 1,759 | 1,738 | 21.3 | 23.1 | 14,923 | 16,049 |
+
+R27.0-B improved total TG in every matched cell. The strongest concurrency changes were c2: 43.2 to 49.9 at d0, 29.6 to 42.8 at d4096, and 24.4 to 30.7 at d8192. PP and TTFT generally favored R27.0-A, apart from d0/c2 PP. R27.0-B is the selected production image because it combines the stronger decode result with finer repeated-agent prefix reuse.
+
 ## R27.0-A fused MTP baseline
 
 Qualified on 2026-09-19 with image `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r27.0-a-pr57443-arm64-sm121` and non-Spark model revision `175ae8ce3b5af842b0d0140dbeb43e9cfc557c49`.
