@@ -233,6 +233,32 @@ Both checkpoints used the same R26.3 image and configuration; only the model che
 
 The non-Spark checkpoint generated faster in all six cells, while Spark retained higher prefill and lower TTFR. Non-Spark MTP acceptance was commonly 52–65%, with the third draft position frequently accepted 31–52%. Both coherence checks passed.
 
+## R28.1 display-reserved KV qualification
+
+Date: 2026-09-22. This run used the unchanged R28 model/kernel stack with the
+R28.1 allocator layer, 1,047,552-token context, 11,840 MiB FP8 KV per rank,
+MTP3, split-page 1024 and the standard 4,096 batched-token limit. The allocator
+placed 1,792 MiB of the KV tensor in the headless display reservation on each
+rank. Coherence, text input, image input and all 27 performance requests passed
+without CUDA, OOM or allocator errors.
+
+| Depth | Concurrency | PP total (tokens/s) | TG total (tokens/s) | TTFR (ms) |
+|---:|---:|---:|---:|---:|
+| 4,096 | 1 | 1,886.49 ± 5.58 | 35.44 ± 3.35 | 3,360.35 ± 9.63 |
+| 4,096 | 2 | 1,797.91 ± 2.76 | 36.97 ± 1.87 | 6,073.26 ± 761.23 |
+| 4,096 | 4 | 1,856.01 ± 3.68 | 31.60 ± 0.77 | 10,485.66 ± 3,040.23 |
+| 8,192 | 1 | 1,917.64 ± 6.42 | 32.09 ± 4.88 | 5,443.43 ± 17.88 |
+| 8,192 | 2 | 1,879.63 ± 2.45 | 32.80 ± 0.28 | 9,565.38 ± 1,330.43 |
+| 8,192 | 4 | 1,912.74 ± 0.85 | 24.82 ± 0.17 | 16,037.72 ± 5,178.39 |
+| 16,384 | 1 | 1,945.65 ± 2.74 | 33.86 ± 2.04 | 9,576.93 ± 13.35 |
+| 16,384 | 2 | 1,915.43 ± 0.76 | 20.97 ± 0.21 | 15,824.99 ± 3,420.65 |
+| 16,384 | 4 | 1,925.90 ± 0.31 | 15.24 ± 0.07 | 26,756.21 ± 9,952.09 |
+
+The initial post-boot `tool-eval-bench --perf-only` run finished 27/27 requests
+in 6:11 with a 0.0 error rate. Its d8192 prefill results were 1,870, 1,878 and
+1,912 tokens/s at c1/c2/c4. The exact allocator and memory evidence is recorded
+in [`display-kv-r28.1.md`](display-kv-r28.1.md).
+
 ## Historical image qualification
 
 ### R26.2 B12X isolation

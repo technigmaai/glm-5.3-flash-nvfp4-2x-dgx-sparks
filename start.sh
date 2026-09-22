@@ -18,6 +18,13 @@ cd "$SCRIPT_DIR"
 [ -f .env ] || { echo "[glm53] Missing .env — copy .env.example to .env and edit"; exit 1; }
 set -a; source .env; set +a
 
+# The display-KV derivative needs /dev/dri/card0 and its runtime switch. Keep
+# this as an opt-in Compose overlay so the original R28 image still works.
+DISPLAY_KV_COMPOSE=""
+if [ "${DISPLAY_KV_ENABLE:-0}" = "1" ]; then
+  DISPLAY_KV_COMPOSE="-f compose.display-kv.override.yaml"
+fi
+
 # Parse mode
 MODE="${1:-both}"
 DO_SYNC=true
@@ -59,14 +66,14 @@ sync_worker() {
 # --- Start worker ---
 start_worker() {
   echo "[glm53] Starting WORKER (rank 1)..."
-  ssh "$WORKER_SSH_TARGET" "cd $WORKER_DIR && docker compose --env-file .env -f compose.worker.yaml up -d"
+  ssh "$WORKER_SSH_TARGET" "cd $WORKER_DIR && docker compose --env-file .env -f compose.worker.yaml $DISPLAY_KV_COMPOSE up -d"
   echo "[glm53] Worker started."
 }
 
 # --- Start head ---
 start_head() {
   echo "[glm53] Starting HEAD (rank 0)..."
-  docker compose --env-file .env -f compose.head.yaml up -d
+  docker compose --env-file .env -f compose.head.yaml $DISPLAY_KV_COMPOSE up -d
   echo "[glm53] Head started."
   echo ""
   echo "  Follow logs: docker logs -f glm53-nvfp4"

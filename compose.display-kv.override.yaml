@@ -1,0 +1,11 @@
+# R28.1 display-reserved KV device and runtime settings.
+# Use with the R28.1 display-KV image and either node compose file.
+services:
+  glm53:
+    devices:
+      - /dev/dri/card0:/dev/dri/card0
+    group_add:
+      - "${DRM_CARD_GID:-44}"
+    environment:
+      GLM53_DISPLAY_KV_ENABLE: "${DISPLAY_KV_ENABLE:-1}"
+      GLM53_DISPLAY_KV_MIN_BYTES: "${DISPLAY_KV_MIN_BYTES:-4294967296}"

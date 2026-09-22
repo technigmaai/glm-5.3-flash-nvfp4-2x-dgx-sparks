@@ -8,6 +8,11 @@ cd "$SCRIPT_DIR"
 [ -f .env ] || { echo "[glm53] Missing .env"; exit 1; }
 set -a; source .env; set +a
 
+DISPLAY_KV_COMPOSE=""
+if [ "${DISPLAY_KV_ENABLE:-0}" = "1" ]; then
+  DISPLAY_KV_COMPOSE="-f compose.display-kv.override.yaml"
+fi
+
 # Prevent the health watchdog from undoing an intentional stop.
 touch "$SCRIPT_DIR/.watchdog-disabled"
 
@@ -18,8 +23,8 @@ if [ -f logs/tee.pid ]; then
 fi
 
 echo "[glm53] Stopping on both nodes..."
-ssh "$WORKER_SSH_TARGET" "cd $WORKER_DIR && docker compose --env-file .env -f compose.worker.yaml down 2>&1 | tail -1"
+ssh "$WORKER_SSH_TARGET" "cd $WORKER_DIR && docker compose --env-file .env -f compose.worker.yaml $DISPLAY_KV_COMPOSE down 2>&1 | tail -1"
 echo "  Worker stopped."
-docker compose --env-file .env -f compose.head.yaml down 2>&1 | tail -1
+docker compose --env-file .env -f compose.head.yaml $DISPLAY_KV_COMPOSE down 2>&1 | tail -1
 echo "  Head stopped."
 echo "[glm53] Both nodes stopped."
