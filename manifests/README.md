@@ -1,0 +1,18 @@
+# Published image manifests
+
+These files were captured from the exact local image tagged for the R28 Docker
+Hub release before publication:
+
+```text
+local/vllm:glm53-karmic-r28-arm64-sm121-cu134
+sha256:7024cd1b8bf30be1728a7fe5f26ff777bb5b361df9216ba31caf4878452f13b6
+```
+
+- `image-identity.txt` records the local image ID, platform, creation time and
+  uncompressed image size reported by Docker.
+- `image-labels.json` records the OCI and NVIDIA base-image labels.
+- `pip-freeze.txt` records the Python environment in `/opt/venv`.
+- `debian-packages.txt` records the installed Debian package versions.
+
+The build recipe's upstream component and file-level provenance are stored in
+[`image/r28-karmic-kraken-arm64/`](../image/r28-karmic-kraken-arm64/).

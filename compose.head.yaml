@@ -1,10 +1,10 @@
 # GLM-5.3-Flash NVFP4 (lab quant) on 2x DGX Spark (TP=2 over RoCE)
 # HEAD node (rank 0) — start AFTER the worker is listening.
 #
-# Qualified R26.3 profile: MTP3, 4096 batched tokens, 1,047,552-token
-# context, 1024-token split pages, NVFP4 draft head, and prefix caching.
-# NOTE: image ENTRYPOINT is ["vllm","serve"] — the bash wrapper below needs
-#       the explicit entrypoint override (same as SparkServe-TP2).
+# Qualified R28 profile: MTP3, 4096 batched tokens, 1,047,552-token
+# context, 1024-token split pages, NVFP4 draft head, image input, and prefix caching.
+# The explicit bash entrypoint below constructs the same vLLM command on both
+# ranks and remains compatible with images that define their own entrypoint.
 #
 # Usage:
 #   docker compose --env-file .env -f compose.head.yaml up -d
@@ -104,6 +104,9 @@ services:
       MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS:-4096}
       MAX_CUDAGRAPH_CAPTURE_SIZE: ${MAX_CUDAGRAPH_CAPTURE_SIZE-}
       SKIP_MM_PROFILING: ${SKIP_MM_PROFILING:-0}
+      MAX_IMAGES_PER_PROMPT: ${MAX_IMAGES_PER_PROMPT:-32}
+      MAX_VIDEOS_PER_PROMPT: ${MAX_VIDEOS_PER_PROMPT:-0}
+      MM_PROCESSOR_CACHE_GB: ${MM_PROCESSOR_CACHE_GB:-2}
       # Empty means vLLM profiles memory and sizes the cache from GPU_MEM.
       KV_CACHE_MEMORY_BYTES: ${KV_CACHE_MEMORY_BYTES-}
       KV_CACHE_DTYPE: ${KV_CACHE_DTYPE:-fp8}
@@ -113,6 +116,11 @@ services:
       # The non-Spark checkpoint's MTP experts are MXFP8. The example profile
       # selects Marlin; Humming remains the safe fallback if the value is absent.
       MTP_MOE_BACKEND: ${MTP_MOE_BACKEND:-humming}
+      MTP_ATTENTION_BACKEND: ${MTP_ATTENTION_BACKEND:-B12X}
+      MTP_DRAFT_SAMPLE_METHOD: ${MTP_DRAFT_SAMPLE_METHOD:-greedy}
+      MTP_REJECTION_SAMPLE_METHOD: ${MTP_REJECTION_SAMPLE_METHOD:-standard}
+      MTP_ADAPTIVE_WINDOW: "${MTP_ADAPTIVE_WINDOW-}"
+      MTP_ADAPTIVE_INITIAL: "${MTP_ADAPTIVE_INITIAL-}"
       VLLM_GLM53_MTP_DRAFT_HEAD: "${GLM53_MTP_DRAFT_HEAD:-bf16}"
       MTP_LOCAL_ARGMAX: "${MTP_LOCAL_ARGMAX:-false}"
       CUSTOM_ALL_REDUCE: "${CUSTOM_ALL_REDUCE:-0}"
@@ -198,7 +206,14 @@ services:
             ;;
           mtp)
             if [ "$${MTP_TOKENS}" -gt 0 ]; then
-              SPEC_ARGS='--speculative-config {"method":"mtp","num_speculative_tokens":'"$${MTP_TOKENS}"',"moe_backend":"'"$${MTP_MOE_BACKEND}"'","attention_backend":"B12X","use_local_argmax_reduction":'"$${MTP_LOCAL_ARGMAX}"',"disable_eagle_block_drop":'"$${MTP_DISABLE_EAGLE_BLOCK_DROP}"'}'
+              SPEC_CONFIG='{"method":"mtp","num_speculative_tokens":'"$${MTP_TOKENS}"',"moe_backend":"'"$${MTP_MOE_BACKEND}"'","attention_backend":"'"$${MTP_ATTENTION_BACKEND}"'","use_local_argmax_reduction":'"$${MTP_LOCAL_ARGMAX}"',"disable_eagle_block_drop":'"$${MTP_DISABLE_EAGLE_BLOCK_DROP}"',"draft_sample_method":"'"$${MTP_DRAFT_SAMPLE_METHOD}"'","rejection_sample_method":"'"$${MTP_REJECTION_SAMPLE_METHOD}"'"}'
+              if [ -n "$${MTP_ADAPTIVE_WINDOW}" ]; then
+                SPEC_CONFIG="$${SPEC_CONFIG%?},\"adaptive_speculative_tokens_window\":$${MTP_ADAPTIVE_WINDOW}}"
+              fi
+              if [ -n "$${MTP_ADAPTIVE_INITIAL}" ]; then
+                SPEC_CONFIG="$${SPEC_CONFIG%?},\"adaptive_speculative_tokens_initial\":$${MTP_ADAPTIVE_INITIAL}}"
+              fi
+              SPEC_ARGS="--speculative-config $${SPEC_CONFIG}"
             fi
             ;;
           none) ;;
@@ -246,6 +261,8 @@ services:
           --load-format instanttensor \
           $${MODEL_LOADER_EXTRA_ARGS} \
           $${MM_PROFILE_ARGS} \
+          --limit-mm-per-prompt "{\"image\":$${MAX_IMAGES_PER_PROMPT},\"video\":$${MAX_VIDEOS_PER_PROMPT}}" \
+          --mm-processor-cache-gb "$${MM_PROCESSOR_CACHE_GB}" \
           --mamba-cache-mode align \
           --kda-prefill-backend "$${KDA_PREFILL_BACKEND}" \
           --max-model-len "$${MAX_MODEL_LEN}" \

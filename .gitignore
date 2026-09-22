@@ -3,8 +3,11 @@
 .env-*
 !.env.example
 .DS_Store
+._*
+.AppleDouble/
 logs/
 tmp/
+image/r28-karmic-kraken-arm64/wheelhouse/
 evaluations/
 profiles/
 benchmark-results/raw/

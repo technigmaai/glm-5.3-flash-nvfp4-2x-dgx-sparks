@@ -2,6 +2,58 @@
 
 This document keeps the qualified production measurements and the historical comparisons that explain the selected image and model. Unless stated otherwise, performance tests used `llama-benchy 0.4.0` from a separate RTX client. PP is total prompt-processing throughput, TG is generation throughput, and TTFR is time to first response.
 
+## R28 Karmic Kraken production profile
+
+Qualified on 2026-09-22 with image
+`technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28-karmic-kraken-arm64-sm121-cu134`
+and model revision `175ae8ce3b5af842b0d0140dbeb43e9cfc557c49`.
+
+R28 rebuilds the source-locked Karmic Kraken component set for ARM64/SM121a on
+NVIDIA PyTorch 26.08, CUDA 13.4.1 and PyTorch 2.14. The production deployment
+used TP2/DCP1, MTP3, fixed 11,900 MiB FP8 KV per rank, a 1,047,552-token limit,
+1,024-token split pages, 128-token prefix matching, four maximum sequences and
+4,096 maximum batched tokens. It reported 1,055,149 cache tokens.
+
+### Strong warm reference
+
+This throughput run used 2,048 prompt tokens, 128 generated tokens, three runs
+per cell and generation-latency mode. It completed in 8 minutes 45 seconds.
+
+| Depth | C | PP t/s | TG t/s | TTFT ms | Total ms |
+|---:|---:|---:|---:|---:|---:|
+| 4,096 | 1 | 1,810 | 30.0 | 3,484 | 7,667 |
+| 4,096 | 2 | 1,814 | 40.1 | 6,122 | 11,406 |
+| 4,096 | 4 | 1,884 | 37.5 | 10,667 | 18,532 |
+| 8,192 | 1 | 1,871 | 33.1 | 5,563 | 9,346 |
+| 8,192 | 2 | 1,901 | 41.7 | 10,111 | 15,358 |
+| 8,192 | 4 | 1,922 | 28.6 | 16,530 | 26,115 |
+| 16,384 | 1 | 1,883 | 34.6 | 9,881 | 13,502 |
+| 16,384 | 2 | 1,897 | 25.8 | 17,082 | 23,618 |
+| 16,384 | 4 | 1,915 | 16.2 | 27,399 | 39,893 |
+
+### Reboot verification
+
+After performance had degraded during repeated backend and scheduler
+experiments, both nodes were rebooted and the same saved R28 profile was
+started. The repeat completed in 8 minutes 55 seconds. Its first d4096/c1
+prefill was a cold outlier; the remaining cells recovered the earlier profile.
+
+| Depth | C | PP t/s | TG t/s | TTFT ms | Total ms |
+|---:|---:|---:|---:|---:|---:|
+| 4,096 | 1 | 1,235 | 33.9 | 6,530 | 10,171 |
+| 4,096 | 2 | 1,677 | 37.7 | 6,664 | 12,347 |
+| 4,096 | 4 | 1,821 | 36.3 | 11,014 | 18,960 |
+| 8,192 | 1 | 1,871 | 37.0 | 5,617 | 8,936 |
+| 8,192 | 2 | 1,865 | 39.5 | 10,291 | 15,696 |
+| 8,192 | 4 | 1,885 | 28.0 | 16,807 | 26,587 |
+| 16,384 | 1 | 1,911 | 36.9 | 9,791 | 13,120 |
+| 16,384 | 2 | 1,926 | 26.1 | 16,765 | 23,033 |
+| 16,384 | 4 | 1,934 | 16.5 | 27,144 | 39,372 |
+
+The deployed multimodal admission profile was subsequently set to 32 images,
+zero videos and a 2 GiB processor cache. A vision sanity request passed. These
+limits do not change the text execution backends or fixed KV allocation.
+
 ## R27.0-B PMU128 production profile
 
 Qualified on 2026-09-20 with image `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r27.0-b-pmu128-arm64-sm121` and model revision `175ae8ce3b5af842b0d0140dbeb43e9cfc557c49`.

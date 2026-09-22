@@ -1,6 +1,7 @@
-image_id=sha256:c13006e527115a28cf8d680ce48c2fa5bfb9fa4165474fccb8c6a13898413325
+image=local/vllm:glm53-karmic-r28-arm64-sm121-cu134
+published_tag=technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28-karmic-kraken-arm64-sm121-cu134
+id=sha256:7024cd1b8bf30be1728a7fe5f26ff777bb5b361df9216ba31caf4878452f13b6
+created=2026-09-21T14:37:24.790313517+02:00
 architecture=arm64
 os=linux
-size_bytes=13066115570
-repo_tags=["local/vllm:glm53-r26.2-quality-bf16-r261-b12x-arm64-sm121","technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r26.2-quality-bf16-arm64-sm121"]
-repo_digests=["local/vllm@sha256:c13006e527115a28cf8d680ce48c2fa5bfb9fa4165474fccb8c6a13898413325","technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks@sha256:c13006e527115a28cf8d680ce48c2fa5bfb9fa4165474fccb8c6a13898413325"]
+size_bytes=13908945118
