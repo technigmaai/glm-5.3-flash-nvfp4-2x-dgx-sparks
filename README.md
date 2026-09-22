@@ -91,6 +91,36 @@ rank 0. It excludes `.git`, logs, `tmp/`, local credentials and model data.
 ./stop.sh
 ```
 
+`watchdog.sh` coordinates recovery if the API fails three consecutive
+one-minute health checks. It stops the remote worker and local head before
+starting the worker-first launch sequence, observes a 15-minute startup grace
+period, and limits automatic restarts to one every 15 minutes. An intentional
+`./stop.sh` disables recovery; the next `./start.sh` enables it again.
+
+Install the head-node user cron entry once:
+
+```bash
+(crontab -l 2>/dev/null | grep -v '/watchdog.sh check' || true; echo '* * * * * /absolute/path/to/watchdog.sh check >/dev/null 2>&1') | crontab -
+./watchdog.sh status
+```
+
+Apply the lower swap preference locally on both nodes. The first command is
+persistent and the second applies it immediately; no reboot is required.
+
+```bash
+echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-glm53-memory.conf >/dev/null
+sudo sysctl -w vm.swappiness=10
+```
+
+The qualified one-million-token profile uses an 11,840 MiB fixed KV cache,
+which provides approximately 1.00x maximum-context capacity. The 1 GiB
+multimodal processor cache retains image support while leaving more system
+memory available than the earlier 2 GiB setting. Keep image builds, pushes,
+downloads and compression jobs off the serving nodes while the model is live.
+This profile still operates close to the unified-memory limit; the measured
+post-warmup swap and the September 22 recovery are documented in
+[`docs/incident-2026-09-22-rpc-timeout.md`](docs/incident-2026-09-22-rpc-timeout.md).
+
 The health endpoint is `http://HEAD_IP:8000/health`; the API base URL is
 `http://HEAD_IP:8000/v1`. Set `CHAT_TEMPLATE=` in `.env` to use the model's
 bundled template. Temperature, `top_p` and reasoning effort are intentionally

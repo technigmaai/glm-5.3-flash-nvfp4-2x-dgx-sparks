@@ -23,6 +23,9 @@ rsync -az --checksum --itemize-changes \
   --exclude='logs/' \
   --exclude='tmp/' \
   --exclude='*.log' \
+  --exclude='.watchdog-disabled' \
+  --exclude='.watchdog-state' \
+  --exclude='.watchdog.lock' \
   --exclude='.DS_Store' \
   "$SCRIPT_DIR/" \
   "$WORKER_SSH_TARGET:$WORKER_DIR/"

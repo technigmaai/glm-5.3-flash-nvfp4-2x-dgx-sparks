@@ -45,6 +45,12 @@ case "$MODE" in
     ;;
 esac
 
+# An explicit start arms the watchdog again. The marker is created by
+# stop.sh so planned maintenance is not mistaken for a service failure.
+if [ "$MODE" = "both" ] || [ "$MODE" = "head" ]; then
+  rm -f "$SCRIPT_DIR/.watchdog-disabled"
+fi
+
 # --- Sync configs to worker ---
 sync_worker() {
   "$SCRIPT_DIR/sync-repo.sh"
@@ -128,7 +134,7 @@ case "$MODE" in
     start_log_tail
     wait_ready; rc=$?
     report_boot "$rc"
-    echo "  Expected boot: about 4-6 min with InstantTensor on a warm model cache"
+    echo "  Expected boot: about 6-7 min with InstantTensor on a warm model cache"
     echo ""
     echo "  Boot markers (check in order):"
     echo "    1. B12X attention / linear / MoE kernels selected"

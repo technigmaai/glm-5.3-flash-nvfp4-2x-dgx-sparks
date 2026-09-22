@@ -8,6 +8,9 @@ cd "$SCRIPT_DIR"
 [ -f .env ] || { echo "[glm53] Missing .env"; exit 1; }
 set -a; source .env; set +a
 
+# Prevent the health watchdog from undoing an intentional stop.
+touch "$SCRIPT_DIR/.watchdog-disabled"
+
 # stop the log tailer if running
 if [ -f logs/tee.pid ]; then
   kill "$(cat logs/tee.pid)" 2>/dev/null || true
