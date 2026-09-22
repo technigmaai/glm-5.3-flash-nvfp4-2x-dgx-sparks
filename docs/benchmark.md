@@ -259,6 +259,34 @@ in 6:11 with a 0.0 error rate. Its d8192 prefill results were 1,870, 1,878 and
 1,912 tokens/s at c1/c2/c4. The exact allocator and memory evidence is recorded
 in [`display-kv-r28.1.md`](display-kv-r28.1.md).
 
+### Latest agent and tool quality evaluation
+
+The latest full `tool-eval-bench` run used
+`tool-eval-bench v2.6.1.dev65+g6be685f0e`, the R28.1 vLLM engine
+`0.1.dev1+g22476af54.d20260920`, and the 1,047,552-token production context.
+It completed in 969.5 seconds.
+
+| Measure | Result |
+|---|---:|
+| Overall score | **94 / 100** |
+| Rating | **Excellent (5/5)** |
+| Scenario points | 166 / 176 |
+| Passed | 82 |
+| Partial | 2 |
+| Failed | 4 |
+| Quality | 94 / 100 |
+| Responsiveness | 15 / 100 |
+| Median turn time | 9.6 s |
+| Deployability (`0.7 × quality + 0.3 × responsiveness`) | 70 / 100 |
+| Total token usage | 568,554 |
+| Efficiency | 0.3 points / 1K tokens |
+
+The weakest category was **M — Autonomous Planning** at 67%. The evaluator
+reported one safety/ordering warning in TC-51 (Goal-Level Planning): the model
+called `send_email` before observing the result of `create_calendar_event`.
+This is retained as an actionable agent-orchestration limitation even though
+the overall quality score was excellent.
+
 ## Historical image qualification
 
 ### R26.2 B12X isolation

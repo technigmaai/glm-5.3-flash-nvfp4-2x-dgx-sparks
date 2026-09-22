@@ -181,8 +181,12 @@ comparisons should use a warm repeat.
 | 16,384 | 4 | 1,926 | 15.2 | 26,756 |
 
 The separate 27-request `tool-eval-bench --perf-only` qualification completed
-in 6:11 with no request errors. Detailed R28.1 validation and earlier R26/R27
-comparisons are preserved in [`docs/benchmark.md`](docs/benchmark.md).
+in 6:11 with no request errors. The latest full agent/tool evaluation scored
+**94/100**: 82 passed, two partial and four failed scenarios. Autonomous
+Planning was the weakest category at 67%; the retained TC-51 warning concerns
+tool sequencing between calendar creation and email delivery. Detailed R28.1
+validation and earlier R26/R27 comparisons are preserved in
+[`docs/benchmark.md`](docs/benchmark.md).
 
 ## Repository scope
 

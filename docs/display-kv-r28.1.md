@@ -84,6 +84,13 @@ approximately 4.5 GiB on rank 0 and 1.8 GiB on rank 1, compared with roughly
 6.2 GiB and 2.9 GiB before display-backed KV was enabled. Workload and kernel
 page state affect exact swap readings.
 
+A subsequent full agent/tool evaluation scored **94/100** with 82 passed, two
+partial and four failed scenarios (166/176 points). It completed in 969.5
+seconds using 568,554 tokens. Autonomous Planning was the weakest category at
+67%, and TC-51 recorded one sequencing warning: `send_email` was called before
+the `create_calendar_event` result was observed. The full quality report is in
+[`benchmark.md`](benchmark.md#latest-agent-and-tool-quality-evaluation).
+
 ## Rollback
 
 Set `DISPLAY_KV_ENABLE=0`, restore the original R28 image tag, and start the
