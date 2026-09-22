@@ -1,6 +1,8 @@
 image=local/vllm:glm53-karmic-r28-arm64-sm121-cu134
 published_tag=technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28-karmic-kraken-arm64-sm121-cu134
 id=sha256:7024cd1b8bf30be1728a7fe5f26ff777bb5b361df9216ba31caf4878452f13b6
+docker_hub_index_digest=sha256:7024cd1b8bf30be1728a7fe5f26ff777bb5b361df9216ba31caf4878452f13b6
+docker_hub_linux_arm64_manifest=sha256:610d5a75e16e574109987093a7894fea926e3ec400b7c2eefa7ab74bfc6b5c06
 created=2026-09-21T14:37:24.790313517+02:00
 architecture=arm64
 os=linux

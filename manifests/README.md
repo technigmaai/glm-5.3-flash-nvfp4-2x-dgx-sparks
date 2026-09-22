@@ -8,6 +8,10 @@ local/vllm:glm53-karmic-r28-arm64-sm121-cu134
 sha256:7024cd1b8bf30be1728a7fe5f26ff777bb5b361df9216ba31caf4878452f13b6
 ```
 
+Docker Hub published that value as the OCI index digest. The Linux ARM64
+manifest digest is
+`sha256:610d5a75e16e574109987093a7894fea926e3ec400b7c2eefa7ab74bfc6b5c06`.
+
 - `image-identity.txt` records the local image ID, platform, creation time and
   uncompressed image size reported by Docker.
 - `image-labels.json` records the OCI and NVIDIA base-image labels.

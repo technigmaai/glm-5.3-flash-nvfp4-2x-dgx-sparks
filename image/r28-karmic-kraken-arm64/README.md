@@ -11,6 +11,11 @@ The published image is:
 technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28-karmic-kraken-arm64-sm121-cu134
 ```
 
+The published OCI index digest is
+`sha256:7024cd1b8bf30be1728a7fe5f26ff777bb5b361df9216ba31caf4878452f13b6`;
+its Linux ARM64 image manifest is
+`sha256:610d5a75e16e574109987093a7894fea926e3ec400b7c2eefa7ab74bfc6b5c06`.
+
 ## Source locks
 
 | Component | Commit |

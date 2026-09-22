@@ -15,6 +15,8 @@ requests control temperature, `top_p` and reasoning effort.
 | Setting | Value |
 |---|---|
 | Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28-karmic-kraken-arm64-sm121-cu134` |
+| Docker Hub index digest | `sha256:7024cd1b8bf30be1728a7fe5f26ff777bb5b361df9216ba31caf4878452f13b6` |
+| Linux ARM64 manifest | `sha256:610d5a75e16e574109987093a7894fea926e3ec400b7c2eefa7ab74bfc6b5c06` |
 | Platform | Linux ARM64, GB10 / SM121a |
 | CUDA / PyTorch | 13.4.1 / 2.14.0 NVIDIA 26.08 build |
 | Model | `local-inference-lab/GLM-5.3-Flash-NVFP4` |
