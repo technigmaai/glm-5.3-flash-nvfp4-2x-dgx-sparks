@@ -1,0 +1,11 @@
+{
+  "base_image": "technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.1-display-kv-arm64-sm121-cu134",
+  "b12x_base": "f6d8b8eb94cdeb4e652652f925a494c6fc86f101",
+  "integration_commit": "7748a84",
+  "upstream_patches": [
+    "b294e69d8eba2ea56d2aed7cc359c0df4bcaa57d",
+    "1dc77276e9d0ba297ad753eb3af04327759c1a3b",
+    "4f3028b19c1d8290dc72b6f483aba40de23eae5a"
+  ],
+  "note": "Surgical R28.1 backport. Benchmark-only conflicts from b294e69d retain the R28.1 harness; tuning schemas are incremented relative to the R28.1 baseline."
+}

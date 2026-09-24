@@ -80,6 +80,7 @@ services:
       GLM53_SPLIT_TARGET_BLOCK_SIZE: "${GLM53_SPLIT_TARGET_BLOCK_SIZE-1024}"
       VLLM_PLUGINS: ""
       B12X_POLICY_MODE: auto
+      B12X_AUTOTUNE_EXHAUSTIVE: "${B12X_AUTOTUNE_EXHAUSTIVE:-0}"
       INSTANTTENSOR_BACKEND: BUFFERED
       INSTANTTENSOR_BUFFER_SIZE: "67108864"
       INSTANTTENSOR_CHUNK_SIZE: "8388608"
@@ -180,7 +181,7 @@ services:
           "") ;;
           compute_share)
             [ -n "$${PREFILL_COMPUTE_SHARE}" ] || { echo "[glm53] PREFILL_COMPUTE_SHARE is required" >&2; exit 2; }
-            FAIRNESS_ARGS="--fairness-engine compute_share --prefill-compute-share $${PREFILL_COMPUTE_SHARE}"
+            FAIRNESS_ARGS="--prefill-compute-share $${PREFILL_COMPUTE_SHARE}"
             ;;
           micro_slicing)
             [ -n "$${MAX_NUM_PREFILL_TOKENS_PER_STEP}" ] || { echo "[glm53] MAX_NUM_PREFILL_TOKENS_PER_STEP is required" >&2; exit 2; }

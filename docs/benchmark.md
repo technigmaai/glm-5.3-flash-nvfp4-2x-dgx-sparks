@@ -2,6 +2,49 @@
 
 This document keeps the qualified production measurements and the historical comparisons that explain the selected image and model. Unless stated otherwise, performance tests used `llama-benchy 0.4.0` from a separate RTX client. PP is total prompt-processing throughput, TG is generation throughput, and TTFR is time to first response.
 
+## R28.2 B12X TG3 production profile
+
+Qualified on 2026-09-24 with image
+`technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.2-b12x-tg3-arm64-sm121-cu134`
+and model revision `175ae8ce3b5af842b0d0140dbeb43e9cfc557c49`.
+
+R28.2 preserves the R28.1 display-reserved KV runtime and serving recipe. It
+replaces only B12X with a wheel built from base
+`f6d8b8eb94cdeb4e652652f925a494c6fc86f101` plus three surgical upstream
+backports:
+
+| Commit | Purpose |
+|---|---|
+| `b294e69d8eba2ea56d2aed7cc359c0df4bcaa57d` | NVFP4 decode register/grid tuning |
+| `1dc77276e9d0ba297ad753eb3af04327759c1a3b` | Spark decode routing, indexer scheduling and preparation |
+| `4f3028b19c1d8290dc72b6f483aba40de23eae5a` | Reuse KDA sliced state |
+
+The qualified deployment used TP2/DCP1, MTP3, one-million-token context,
+11,840 MiB FP8 KV per rank, 1,024-token split pages, 128-token prefix matching,
+four maximum sequences and 4,096 maximum batched tokens. B12X exhaustive
+autotuning, scheduler fairness and EAGLE block dropping were disabled.
+
+The command was `tool-eval-bench --perf-only --depth "4096,8192,16384"`.
+Its embedded llama-benchy run used 2,048 prompt tokens, 128 generated tokens,
+three samples per cell and generation-latency mode. All 27 requests passed and
+the sweep completed in 8 minutes 50 seconds.
+
+| Depth | C | PP t/s | TG t/s | TTFT ms | Total ms |
+|---:|---:|---:|---:|---:|---:|
+| 4,096 | 1 | 1,802 | 30.5 | 3,531 | 7,613 |
+| 4,096 | 2 | 1,792 | 38.2 | 6,164 | 11,794 |
+| 4,096 | 4 | 1,875 | 35.4 | 10,685 | 19,450 |
+| 8,192 | 1 | 1,883 | 30.5 | 5,559 | 9,645 |
+| 8,192 | 2 | 1,898 | 37.2 | 10,104 | 15,845 |
+| 8,192 | 4 | 1,929 | 27.7 | 16,413 | 26,458 |
+| 16,384 | 1 | 1,932 | 31.5 | 9,662 | 13,618 |
+| 16,384 | 2 | 1,932 | 26.1 | 16,724 | 23,061 |
+| 16,384 | 4 | 1,941 | 16.6 | 27,063 | 39,447 |
+
+R28.2 improved c4 generation throughput over the qualified R28.1 run at all
+three depths: 31.6 to 35.4, 24.8 to 27.7, and 15.2 to 16.6 tokens/s. Prefill
+remained around 1.88–1.94K tokens/s in the warm c4 cells.
+
 ## R28 Karmic Kraken production profile
 
 Qualified on 2026-09-22 with image
@@ -51,7 +94,7 @@ prefill was a cold outlier; the remaining cells recovered the earlier profile.
 | 16,384 | 4 | 1,934 | 16.5 | 27,144 | 39,372 |
 
 The deployed multimodal admission profile was subsequently set to 32 images,
-zero videos and a 2 GiB processor cache. A vision sanity request passed. These
+zero videos and a 1 GiB processor cache. A vision sanity request passed. These
 limits do not change the text execution backends or fixed KV allocation.
 
 ## R27.0-B PMU128 production profile

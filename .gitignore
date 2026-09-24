@@ -8,6 +8,7 @@
 logs/
 tmp/
 image/r28-karmic-kraken-arm64/wheelhouse/
+image/r28.2-b12x-tg3-arm64/wheelhouse/
 evaluations/
 profiles/
 benchmark-results/raw/

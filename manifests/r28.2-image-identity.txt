@@ -1,0 +1,8 @@
+image=local/vllm:glm53-r28.2-b12x-tg3-arm64-sm121-cu134
+published_tag=technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.2-b12x-tg3-arm64-sm121-cu134
+id=sha256:b895b0c0b86dfeab192b01d785b784698e04b7a75e8f02c1d57355c3d6e45d08
+docker_hub_digest=sha256:b895b0c0b86dfeab192b01d785b784698e04b7a75e8f02c1d57355c3d6e45d08
+created=2026-09-23T07:37:03.360078492+02:00
+architecture=arm64
+os=linux
+size_bytes=13918208851

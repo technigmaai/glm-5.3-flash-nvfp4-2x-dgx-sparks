@@ -20,3 +20,9 @@ manifest digest is
 
 The build recipe's upstream component and file-level provenance are stored in
 [`image/r28-karmic-kraken-arm64/`](../image/r28-karmic-kraken-arm64/).
+
+The R28.2 release adds `r28.2-image-identity.txt` and
+`r28.2-image-labels.json`. They capture the exact qualified B12X TG3 overlay,
+including its Docker Hub digest and three pinned B12X backports. Its complete
+rebuild recipe is in
+[`image/r28.2-b12x-tg3-arm64/`](../image/r28.2-b12x-tg3-arm64/).
