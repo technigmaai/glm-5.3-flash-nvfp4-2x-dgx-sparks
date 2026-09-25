@@ -26,3 +26,8 @@ The R28.2 release adds `r28.2-image-identity.txt` and
 including its Docker Hub digest and three pinned B12X backports. Its complete
 rebuild recipe is in
 [`image/r28.2-b12x-tg3-arm64/`](../image/r28.2-b12x-tg3-arm64/).
+
+The R28.3-A release adds `r28.3-a-image-identity.txt` and
+`r28.3-a-image-labels.json`. They identify the exact production overlay for
+vLLM PR #58454. Its fail-closed source recipe and patch provenance are in
+[`image/r28.3-a-pr58454/`](../image/r28.3-a-pr58454/).

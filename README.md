@@ -5,20 +5,22 @@ This repository provides a reproducible two-node deployment for
 on two NVIDIA DGX Spark systems. It runs one GB10 GPU per node with tensor
 parallelism 2 over RoCE and exposes an OpenAI-compatible vLLM API on port 8000.
 
-The current production profile is R28.2, a surgical B12X performance update to
-the R28.1 display-KV derivative of the Karmic Kraken ARM64/SM121a build. It uses
-CUDA 13.4.1, PyTorch 2.14, a pinned vLLM/B12X stack, one-million-token context,
-MTP3 speculative decoding, fixed FP8 KV cache and image input. On headless
-Sparks, 1.75 GiB of each rank's KV buffer is backed by the firmware display
-reservation. Client requests control temperature, `top_p` and reasoning effort.
+The current production profile is R28.3-A. It retains the qualified R28.2
+B12X performance stack and adds the NVIDIA runtime fix from upstream vLLM PR
+[#58454](https://github.com/vllm-project/vllm/pull/58454) for GLM speculative
+decode k-pool tail-ring correctness. It uses CUDA 13.4.1, PyTorch 2.14, a pinned
+vLLM/B12X stack, one-million-token context, MTP3 speculative decoding, fixed
+FP8 KV cache and image input. On headless Sparks, 1.75 GiB of each rank's KV
+buffer is backed by the firmware display reservation. Client requests control
+temperature, `top_p` and reasoning effort.
 
 ## Production profile
 
 | Setting | Value |
 |---|---|
-| Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.2-b12x-tg3-arm64-sm121-cu134` |
-| Base image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.1-display-kv-arm64-sm121-cu134` |
-| Docker Hub digest | `sha256:b895b0c0b86dfeab192b01d785b784698e04b7a75e8f02c1d57355c3d6e45d08` |
+| Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.3-a-pr58454-arm64-sm121-cu134` |
+| Base image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.2-b12x-tg3-arm64-sm121-cu134` |
+| Docker Hub digest | `sha256:f39eef91d461b893f3339151102f2b716ffcbf36dbce2c7c329a3ffe949c5473` |
 | Moving alias | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:latest` points to the same digest |
 | Platform | Linux ARM64, GB10 / SM121a |
 | CUDA / PyTorch | 13.4.1 / 2.14.0 NVIDIA 26.08 build |
@@ -74,7 +76,10 @@ runtime and adds only the display-KV allocation layer documented in
 [`image/r28.1-display-kv-arm64/`](image/r28.1-display-kv-arm64).
 R28.2 replaces only the B12X wheel with three pinned upstream backports; its
 small overlay recipe and source manifest are in
-[`image/r28.2-b12x-tg3-arm64/`](image/r28.2-b12x-tg3-arm64).
+[`image/r28.2-b12x-tg3-arm64/`](image/r28.2-b12x-tg3-arm64). R28.3-A layers the
+two Python/Triton source changes from pinned vLLM PR #58454 over R28.2; its
+fail-closed recipe, extracted upstream diff and patch manifest are in
+[`image/r28.3-a-pr58454/`](image/r28.3-a-pr58454).
 
 ## Deploy
 
@@ -85,7 +90,7 @@ model revision available in the same Hugging Face cache path on both systems.
 ```bash
 git clone https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks.git
 cd glm-5.3-flash-nvfp4-2x-dgx-sparks
-docker pull technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.2-b12x-tg3-arm64-sm121-cu134
+docker pull technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.3-a-pr58454-arm64-sm121-cu134
 cp .env.example .env
 # Apply the headless host setup in docs/display-kv-r28.1.md on both nodes.
 # Edit the cache path, RoCE interfaces, IP addresses, SSH target and worker path.
@@ -171,32 +176,33 @@ cd image/r28.2-b12x-tg3-arm64
 ./build.sh
 ```
 
+R28.3-A is a small source overlay over R28.2 and does not rebuild CUDA,
+PyTorch, vLLM native extensions or B12X:
+
+```bash
+cd image/r28.3-a-pr58454
+./build.sh
+```
+
 ## Qualified performance
 
-The qualified warm R28.2 run used `tool-eval-bench --perf-only`, which invokes
-`llama-benchy 0.4.0`, from a separate RTX host. It used 2,048 prompt tokens,
-128 generated tokens, three samples per cell and no request errors. The full
-27-request sweep completed in 8 minutes 50 seconds.
+R28.3-A was qualified with `llm-decode-bench 0.6.2` from a separate RTX host
+at repository commit `ccd9ad8ced7e387794391bfb0ac6d99b1f66ba6f`. Each
+sustained decode cell ran for 30 seconds with 2,048 maximum output tokens. The
+warm run completed without request, CUDA, OOM or distributed errors.
 
-| Depth | Concurrency | PP t/s | TG t/s | TTFT ms |
-|---:|---:|---:|---:|---:|
-| 4,096 | 1 | 1,802 | 30.5 | 3,531 |
-| 4,096 | 2 | 1,792 | 38.2 | 6,164 |
-| 4,096 | 4 | 1,875 | 35.4 | 10,685 |
-| 8,192 | 1 | 1,883 | 30.5 | 5,559 |
-| 8,192 | 2 | 1,898 | 37.2 | 10,104 |
-| 8,192 | 4 | 1,929 | 27.7 | 16,413 |
-| 16,384 | 1 | 1,932 | 31.5 | 9,662 |
-| 16,384 | 2 | 1,932 | 26.1 | 16,724 |
-| 16,384 | 4 | 1,941 | 16.6 | 27,063 |
+| Context | C1 TG t/s | C2 total TG t/s | C4 total TG t/s |
+|---:|---:|---:|---:|
+| 16,384 | 30.8 | 44.9 | 66.2 |
+| 32,768 | 30.6 | 44.9 | 71.5 |
+| 65,536 | 29.5 | 45.6 | 70.4 |
 
-Compared with the original qualified R28.1 run, R28.2's c4 TG rose from 31.6
-to 35.4 at depth 4,096, from 24.8 to 27.7 at depth 8,192, and from 15.2 to
-16.6 at depth 16,384. The latest full agent/tool evaluation scored
-**94/100**: 82 passed, two partial and four failed scenarios. Autonomous
-Planning was the weakest category at 67%; the retained TC-51 warning concerns
-tool sequencing between calendar creation and email delivery. Detailed R28.2
-validation and earlier R26/R27 comparisons are preserved in
+Its average sustained generation throughput across all nine cells was 48.3
+tokens/s, effectively tied with R28.1's 48.7 tokens/s reference while adding
+the k-pool correctness fix. Average R28.3-A c1/c2/c4 totals were 30.3, 45.1
+and 69.4 tokens/s. Warm prefill measured 1,944, 1,941, 1,943, 2,085 and 2,029
+tokens/s at 8K, 16K, 32K, 64K and 128K. The earlier cold post-start run and
+all per-cell MTP acceptance values are preserved in
 [`docs/benchmark.md`](docs/benchmark.md).
 
 ## Repository scope

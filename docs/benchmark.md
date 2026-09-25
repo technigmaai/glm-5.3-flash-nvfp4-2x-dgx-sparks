@@ -2,6 +2,57 @@
 
 This document keeps the qualified production measurements and the historical comparisons that explain the selected image and model. Unless stated otherwise, performance tests used `llama-benchy 0.4.0` from a separate RTX client. PP is total prompt-processing throughput, TG is generation throughput, and TTFR is time to first response.
 
+## R28.3-A PR #58454 production profile
+
+Qualified on 2026-09-25 with image `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.3-a-pr58454-arm64-sm121-cu134` and Docker Hub digest
+`sha256:f39eef91d461b893f3339151102f2b716ffcbf36dbce2c7c329a3ffe949c5473`. The moving `latest` alias resolves to the same digest.
+
+R28.3-A preserves the complete R28.2 serving profile and adds the NVIDIA
+runtime part of [vLLM PR #58454](https://github.com/vllm-project/vllm/pull/58454),
+pinned at PR head `8408acad51384ff283acafa8ed486cb7417521b7`. The patch grows
+the GLM k-pool speculative tail ring from four to eight positions for MTP3 so
+rejected pool-completing drafts cannot overwrite committed keys. It changes
+only `common/attention.py` and `nvidia/ops/kpool_compress.py`; CUDA, PyTorch,
+native vLLM extensions, B12X and the serving parameters remain unchanged.
+
+### Sustained decode qualification
+
+The comparison used `llm-decode-bench 0.6.2` at repository commit
+`ccd9ad8ced7e387794391bfb0ac6d99b1f66ba6f`, 30 seconds per decode cell and
+2,048 maximum output tokens. R28.1 is the previous production reference. The
+cold R28.3-A pass was captured immediately after service startup; the warm
+pass followed it on the same healthy deployment.
+
+| Context | C | R28.1 TG t/s | R28.3-A cold TG t/s | R28.3-A warm TG t/s | Warm TG/request |
+|---:|---:|---:|---:|---:|---:|
+| 16,384 | 1 | 32.2 | 29.7 | 30.8 | 30.8 |
+| 16,384 | 2 | 45.0 | 45.7 | 44.9 | 22.5 |
+| 16,384 | 4 | 68.5 | 64.6 | 66.2 | 16.5 |
+| 32,768 | 1 | 28.8 | 32.9 | 30.6 | 30.6 |
+| 32,768 | 2 | 48.6 | 46.4 | 44.9 | 22.4 |
+| 32,768 | 4 | 72.2 | 66.1 | 71.5 | 17.9 |
+| 65,536 | 1 | 27.5 | 32.9 | 29.5 | 29.5 |
+| 65,536 | 2 | 46.4 | 46.0 | 45.6 | 22.8 |
+| 65,536 | 4 | 69.0 | 63.4 | 70.4 | 17.6 |
+
+Average total TG across all cells was 48.7 tokens/s for R28.1, 47.5 for the
+cold R28.3-A pass and 48.3 for the warm R28.3-A pass. Warm R28.3-A averages
+by concurrency were 30.3, 45.1 and 69.4 tokens/s for c1, c2 and c4.
+
+| Prefill depth | R28.1 PP t/s | R28.3-A cold PP t/s | R28.3-A warm PP t/s |
+|---:|---:|---:|---:|
+| 8,192 | 1,969 | 1,589 | 1,944 |
+| 16,384 | 2,034 | 1,940 | 1,941 |
+| 32,768 | 2,060 | 1,936 | 1,943 |
+| 65,536 | 2,079 | 1,993 | 2,085 |
+| 131,072 | 2,055 | 1,939 | 2,029 |
+
+MTP normalized throughput and average accepted-token counts for the warm pass
+were: 11.4/2.70, 17.1/2.63 and 24.1/2.74 at 16K; 11.4/2.69, 17.2/2.61 and
+25.7/2.78 at 32K; and 11.4/2.60, 17.1/2.66 and 25.4/2.77 at 64K for c1/c2/c4.
+The overlay therefore retained the established production performance while
+fixing a correctness hazard in speculative k-pool maintenance.
+
 ## R28.2 B12X TG3 production profile
 
 Qualified on 2026-09-24 with image
