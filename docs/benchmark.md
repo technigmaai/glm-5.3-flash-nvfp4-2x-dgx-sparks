@@ -2,6 +2,48 @@
 
 This document keeps the qualified production measurements and the historical comparisons that explain the selected image and model. Unless stated otherwise, performance tests used `llama-benchy 0.4.0` from a separate RTX client. PP is total prompt-processing throughput, TG is generation throughput, and TTFR is time to first response.
 
+## R28.4-A and R28.5-A patch qualification
+
+Qualified on 2026-09-26 using `tool-eval-bench --perf-only` from the same RTX
+client with identical arguments:
+
+```bash
+uvx tool-eval-bench --base-url http://HEAD_IP:8000 \
+  --perf-only --depth "4096,8192,16384"
+```
+
+Each sweep used PP=2048, TG=128, concurrency 1/2/4 and three runs per cell.
+R28.4-A contains vLLM PRs #58454 and #58785. R28.5-A adds merged PR #58779;
+the model, runtime settings and benchmark command were otherwise unchanged.
+
+| Run | Image | State | Wall time | Estimated latency |
+|---:|---|---|---:|---:|
+| 1 | R28.4-A | cold | 9:28 | 306.5 ms |
+| 2 | R28.4-A | warm | 9:14 | 97.2 ms |
+| 3 | R28.5-A | cold | 9:23 | 183.1 ms |
+| 4 | R28.5-A | warm | 8:43 | 108.1 ms |
+
+Cold performance was effectively tied: wall time improved 0.9%, mean PP was
+0.4% higher, mean TG was 2.0% higher, mean TTFT was 0.1% lower and mean total
+latency was 0.1% higher. The warm comparison was more favorable:
+
+| Warm mean | R28.4-A | R28.5-A | Change |
+|---|---:|---:|---:|
+| PP | 1,745 t/s | 1,896 t/s | +8.6% |
+| TG | 30.28 t/s | 31.23 t/s | +3.2% |
+| TTFT | 12,451 ms | 11,709 ms | -6.0% |
+| Total latency | 19,383 ms | 18,333 ms | -5.4% |
+
+The largest warm difference was at depth 4096/concurrency 4: PP increased
+from 1,554 to 1,887 t/s, TG from 29.7 to 36.5 t/s, TTFT fell from 12,415 to
+10,611 ms and total latency from 22,182 to 19,017 ms. At depth 16K, most
+differences were approximately 1-3%.
+
+PR #58779 only bounds a failure-path RPC wait; it does not alter kernels or
+normal sampling. The warm gain is therefore retained as an observed
+operational result, not attributed causally to that PR. Both release images
+passed static validation, normal TP2 startup and an HTTP 200 chat smoke.
+
 ## R28.3-A PR #58454 production profile
 
 Qualified on 2026-09-25 with image `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.3-a-pr58454-arm64-sm121-cu134` and Docker Hub digest

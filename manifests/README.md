@@ -31,3 +31,16 @@ The R28.3-A release adds `r28.3-a-image-identity.txt` and
 `r28.3-a-image-labels.json`. They identify the exact production overlay for
 vLLM PR #58454. Its fail-closed source recipe and patch provenance are in
 [`image/r28.3-a-pr58454/`](../image/r28.3-a-pr58454/).
+
+The R28.4-A release adds `r28.4-a-image-identity.txt` and
+`r28.4-a-image-labels.json`. They capture the native ARM64/SM121 vLLM rebuild
+that retains PR #58454 and adds PR #58785's exact persistent-top-k overflow
+fallback. The wheel hash, cumulative source tree and GPU regression evidence
+are recorded in
+[`image/r28.4-a-pr58785/`](../image/r28.4-a-pr58785/).
+
+The R28.5-A release adds `r28.5-a-image-identity.txt` and
+`r28.5-a-image-labels.json`. It is the production Python-only overlay for
+merged PR #58779 and is also the current `latest` image. Its fail-closed patch
+recipe is in
+[`image/r28.5-a-pr58779/`](../image/r28.5-a-pr58779/).

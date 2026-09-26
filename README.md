@@ -5,22 +5,24 @@ This repository provides a reproducible two-node deployment for
 on two NVIDIA DGX Spark systems. It runs one GB10 GPU per node with tensor
 parallelism 2 over RoCE and exposes an OpenAI-compatible vLLM API on port 8000.
 
-The current production profile is R28.3-A. It retains the qualified R28.2
-B12X performance stack and adds the NVIDIA runtime fix from upstream vLLM PR
-[#58454](https://github.com/vllm-project/vllm/pull/58454) for GLM speculative
-decode k-pool tail-ring correctness. It uses CUDA 13.4.1, PyTorch 2.14, a pinned
-vLLM/B12X stack, one-million-token context, MTP3 speculative decoding, fixed
-FP8 KV cache and image input. On headless Sparks, 1.75 GiB of each rank's KV
-buffer is backed by the firmware display reservation. Client requests control
-temperature, `top_p` and reasoning effort.
+The current production profile is R28.5-A. It retains the qualified R28.2 B12X
+performance stack and the correctness fixes from vLLM PRs
+[#58454](https://github.com/vllm-project/vllm/pull/58454) and
+[#58785](https://github.com/vllm-project/vllm/pull/58785), then adds the bounded
+MTP draft-token RPC wait from merged PR
+[#58779](https://github.com/vllm-project/vllm/pull/58779). It uses CUDA 13.4.1,
+PyTorch 2.14, a pinned vLLM/B12X stack, one-million-token context, MTP3
+speculative decoding, fixed FP8 KV cache and image input. On headless Sparks,
+1.75 GiB of each rank's KV buffer is backed by the firmware display
+reservation. Client requests control temperature, `top_p` and reasoning effort.
 
 ## Production profile
 
 | Setting | Value |
 |---|---|
-| Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.3-a-pr58454-arm64-sm121-cu134` |
-| Base image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.2-b12x-tg3-arm64-sm121-cu134` |
-| Docker Hub digest | `sha256:f39eef91d461b893f3339151102f2b716ffcbf36dbce2c7c329a3ffe949c5473` |
+| Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.5-a-pr58454-pr58785-pr58779-arm64-sm121-cu134` |
+| Base image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.4-a-pr58454-pr58785-arm64-sm121-cu134` |
+| Docker Hub digest | `sha256:ca40c504b0fac78a92c929262dbe6236cfa07c6896f36f7d2679123262d27dd6` |
 | Moving alias | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:latest` points to the same digest |
 | Platform | Linux ARM64, GB10 / SM121a |
 | CUDA / PyTorch | 13.4.1 / 2.14.0 NVIDIA 26.08 build |
@@ -79,7 +81,12 @@ small overlay recipe and source manifest are in
 [`image/r28.2-b12x-tg3-arm64/`](image/r28.2-b12x-tg3-arm64). R28.3-A layers the
 two Python/Triton source changes from pinned vLLM PR #58454 over R28.2; its
 fail-closed recipe, extracted upstream diff and patch manifest are in
-[`image/r28.3-a-pr58454/`](image/r28.3-a-pr58454).
+[`image/r28.3-a-pr58454/`](image/r28.3-a-pr58454). R28.4-A rebuilds vLLM
+natively with PR #58785 and preserves the display-KV overlay; its source and
+wheel hashes are in
+[`image/r28.4-a-pr58785/`](image/r28.4-a-pr58785). R28.5-A adds merged PR
+#58779 as a fail-closed Python overlay documented in
+[`image/r28.5-a-pr58779/`](image/r28.5-a-pr58779).
 
 ## Deploy
 
@@ -90,7 +97,7 @@ model revision available in the same Hugging Face cache path on both systems.
 ```bash
 git clone https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks.git
 cd glm-5.3-flash-nvfp4-2x-dgx-sparks
-docker pull technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.3-a-pr58454-arm64-sm121-cu134
+docker pull technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.5-a-pr58454-pr58785-pr58779-arm64-sm121-cu134
 cp .env.example .env
 # Apply the headless host setup in docs/display-kv-r28.1.md on both nodes.
 # Edit the cache path, RoCE interfaces, IP addresses, SSH target and worker path.
@@ -184,7 +191,39 @@ cd image/r28.3-a-pr58454
 ./build.sh
 ```
 
+R28.4-A installs the pinned native ARM64/SM121 vLLM wheel described by its
+patch manifest. Generated wheels remain outside Git:
+
+```bash
+cd image/r28.4-a-pr58785
+./build.sh
+```
+
+R28.5-A is a small Python-only overlay over R28.4-A:
+
+```bash
+cd image/r28.5-a-pr58779
+./build.sh
+```
+
 ## Qualified performance
+
+The matched `tool-eval-bench --perf-only` sweep used a 2,048-token prompt,
+128 generated tokens, depths 4K/8K/16K, concurrency 1/2/4 and three runs per
+cell. Cold R28.5-A was effectively tied with R28.4-A; the observed warm
+R28.5-A run completed 31 seconds sooner. PR #58779 is timeout-only, so this is
+recorded as an operational result rather than a direct patch performance claim.
+
+| Measure | R28.4-A warm | R28.5-A warm | Change |
+|---|---:|---:|---:|
+| Sweep wall time | 9:14 | 8:43 | 5.6% lower |
+| Mean prompt throughput | 1,745 t/s | 1,896 t/s | 8.6% higher |
+| Mean generation throughput | 30.28 t/s | 31.23 t/s | 3.2% higher |
+| Mean TTFT | 12,451 ms | 11,709 ms | 6.0% lower |
+| Mean total latency | 19,383 ms | 18,333 ms | 5.4% lower |
+
+The exact cold/warm comparison is preserved in
+[`docs/benchmark.md`](docs/benchmark.md).
 
 R28.3-A was qualified with `llm-decode-bench 0.6.2` from a separate RTX host
 at repository commit `ccd9ad8ced7e387794391bfb0ac6d99b1f66ba6f`. Each

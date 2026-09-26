@@ -1,0 +1,9 @@
+image=local/vllm:glm53-r28.5-a-pr58454-pr58785-pr58779-arm64-sm121-cu134
+published_tag=technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.5-a-pr58454-pr58785-pr58779-arm64-sm121-cu134
+latest_tag=technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:latest
+id=sha256:ca40c504b0fac78a92c929262dbe6236cfa07c6896f36f7d2679123262d27dd6
+docker_hub_digest=sha256:ca40c504b0fac78a92c929262dbe6236cfa07c6896f36f7d2679123262d27dd6
+created=2026-09-26T11:51:05.933473246+02:00
+architecture=arm64
+os=linux
+size_bytes=14918807534

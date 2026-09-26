@@ -1,0 +1,15 @@
+diff --git a/vllm/v1/executor/multiproc_executor.py b/vllm/v1/executor/multiproc_executor.py
+index dcd9b6b79..dd9328862 100644
+--- a/vllm/v1/executor/multiproc_executor.py
++++ b/vllm/v1/executor/multiproc_executor.py
+@@ -369,7 +369,9 @@ class MultiprocExecutor(Executor):
+     def take_draft_token_ids(self) -> DraftTokenIds | None:
+         # OPTIMIZATION: Get output only from a single worker (output_rank)
+         return self.collective_rpc(
+-            "take_draft_token_ids", unique_reply_rank=self.output_rank
++            "take_draft_token_ids",
++            unique_reply_rank=self.output_rank,
++            timeout=envs.VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS,
+         )
+ 
+     def collective_rpc(  # type: ignore[override]
