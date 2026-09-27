@@ -5,28 +5,42 @@ This repository provides a reproducible two-node deployment for
 on two NVIDIA DGX Spark systems. It runs one GB10 GPU per node with tensor
 parallelism 2 over RoCE and exposes an OpenAI-compatible vLLM API on port 8000.
 
-The current production profile is R28.8-A. It retains the qualified R28.2 B12X
-performance stack and the correctness fixes from vLLM PRs
-[#58454](https://github.com/vllm-project/vllm/pull/58454) and
-[#58785](https://github.com/vllm-project/vllm/pull/58785), adds the bounded MTP
-draft-token RPC wait from merged PR
-[#58779](https://github.com/vllm-project/vllm/pull/58779), and combines the
-GLM sparse-indexer and metadata changes from merged PRs
-[#58594](https://github.com/vllm-project/vllm/pull/58594) and
-[#58450](https://github.com/vllm-project/vllm/pull/58450). It uses CUDA 13.4.1,
-PyTorch 2.14, a pinned vLLM/B12X stack, one-million-token context, MTP3
-speculative decoding, fixed FP8 KV cache and image input. On headless Sparks,
-1.75 GiB of each rank's KV buffer is backed by the firmware display
-reservation. Client requests control temperature, `top_p` and reasoning effort.
+**Use R28.8-A for new deployments.** It is the qualified production image and
+the current `latest` alias. R28.6-A and R28.7-A are retained as isolated
+comparison images for PRs #58594 and #58450; they are not newer alternatives
+to R28.8-A.
 
-## Production profile
+R28.8-A combines the complete qualified patch chain—vLLM PRs
+[#58454](https://github.com/vllm-project/vllm/pull/58454),
+[#58785](https://github.com/vllm-project/vllm/pull/58785),
+[#58779](https://github.com/vllm-project/vllm/pull/58779),
+[#58594](https://github.com/vllm-project/vllm/pull/58594) and
+[#58450](https://github.com/vllm-project/vllm/pull/58450)—with the R28.2 B12X
+performance stack. It provides a one-million-token context, MTP3 speculative
+decoding, fixed FP8 KV cache and image input on CUDA 13.4.1 / PyTorch 2.14.
+
+## Current release
 
 | Setting | Value |
 |---|---|
-| Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.8-a-pr58454-pr58785-pr58779-pr58594-pr58450-arm64-sm121-cu134` |
-| Base image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.5-a-pr58454-pr58785-pr58779-arm64-sm121-cu134` |
-| Docker Hub digest | `sha256:1169f797539454e3c286557d49fddd488488957d9a3f10638b01052998370622` |
-| Moving alias | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:latest` points to the same digest |
+| Recommended release | **R28.8-A** |
+| Docker repository | [`technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks`](https://hub.docker.com/r/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks) |
+| Versioned tag | `r28.8-a-pr58454-pr58785-pr58779-pr58594-pr58450-arm64-sm121-cu134` |
+| Immutable digest | `sha256:1169f797539454e3c286557d49fddd488488957d9a3f10638b01052998370622` |
+| Immutable pull | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks@sha256:1169f797539454e3c286557d49fddd488488957d9a3f10638b01052998370622` |
+| Moving alias | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:latest` resolves to the same digest |
+| Parent image | R28.5-A |
+| Added over parent | PRs [#58594](https://github.com/vllm-project/vllm/pull/58594) and [#58450](https://github.com/vllm-project/vllm/pull/58450) |
+| GitHub release | [R28.8-A release notes](https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks/releases/tag/r28.8-a-pr58454-pr58785-pr58779-pr58594-pr58450-arm64-sm121-cu134) |
+| Reproducible recipe | [`image/r28.8-a-pr58594-pr58450/`](image/r28.8-a-pr58594-pr58450) |
+
+Use the versioned tag or immutable digest in production. The `latest` tag is a
+convenience alias and may move in a future release.
+
+## Qualified runtime profile
+
+| Setting | Value |
+|---|---|
 | Platform | Linux ARM64, GB10 / SM121a |
 | CUDA / PyTorch | 13.4.1 / 2.14.0 NVIDIA 26.08 build |
 | Model | `local-inference-lab/GLM-5.3-Flash-NVFP4` |
@@ -37,12 +51,12 @@ reservation. Client requests control temperature, `top_p` and reasoning effort.
 | Fixed KV cache | 11,840 MiB per rank, FP8 |
 | Display-backed KV | 1,792 MiB per rank; 10,040 MiB remains in ordinary unified memory |
 | Maximum sequences / batched tokens | 4 / 4,096 |
-| Physical split target page | 1,024 tokens |
+| Sparse split target block size | 1,024 tokens (`GLM53_SPLIT_TARGET_BLOCK_SIZE=1024`) |
 | Prefix cache | Enabled, 128-token match unit |
 | Speculation | MTP3, greedy draft and standard rejection sampling |
 | MTP experts / attention | Marlin MXFP8 / B12X |
 | MTP vocabulary head | NVFP4 draft head; target verifier remains BF16 |
-| Target attention, linear, MoE / KDA | B12X / B12X |
+| Target MoE / KDA prefill | B12X / B12X |
 | Scheduling | Async scheduling and chunked prefill enabled |
 | Collectives | RoCEnante up to 2 MiB, PyNCCL fallback |
 | CUDA graphs | Full and piecewise capture |
@@ -59,6 +73,10 @@ The image profile was also verified with a real image request. Video is disabled
 to avoid reserving memory for an unused modality; the 32-image limit is an
 admission limit per request, not a preallocation of 32 decoded images.
 
+`GLM53_SPLIT_TARGET_BLOCK_SIZE=1024` controls the sparse-attention split target;
+it is separate from `MAX_NUM_BATCHED_TOKENS=4096`, which limits tokens admitted
+to one scheduler iteration.
+
 ## R28 source stack
 
 R28 rebuilds the pinned local-inference-lab Karmic Kraken assembly natively for
@@ -74,27 +92,44 @@ ARM64/SM121a rather than installing x86-64 release wheels.
 | NCCL canonical | `93fe05d9f9b6963ef841166a69cd0b30e4efe97b` |
 | blackwell-llm-docker recipe | `23d674e8f658dae2db75399c48430693c196b258` |
 
-The complete build recipe, source manifests and ARM64 adaptation notes are in
+The complete native build recipe and ARM64 adaptation notes are in
 [`image/r28-karmic-kraken-arm64/`](image/r28-karmic-kraken-arm64). Generated
-wheels, build trees and caches are intentionally ignored. R28.1 preserves that
-runtime and adds only the display-KV allocation layer documented in
-[`image/r28.1-display-kv-arm64/`](image/r28.1-display-kv-arm64).
-R28.2 replaces only the B12X wheel with three pinned upstream backports; its
-small overlay recipe and source manifest are in
-[`image/r28.2-b12x-tg3-arm64/`](image/r28.2-b12x-tg3-arm64). R28.3-A layers the
-two Python/Triton source changes from pinned vLLM PR #58454 over R28.2; its
-fail-closed recipe, extracted upstream diff and patch manifest are in
-[`image/r28.3-a-pr58454/`](image/r28.3-a-pr58454). R28.4-A rebuilds vLLM
-natively with PR #58785 and preserves the display-KV overlay; its source and
-wheel hashes are in
-[`image/r28.4-a-pr58785/`](image/r28.4-a-pr58785). R28.5-A adds merged PR
-#58779 as a fail-closed Python overlay documented in
-[`image/r28.5-a-pr58779/`](image/r28.5-a-pr58779). R28.6-A and R28.7-A test
-merged PRs #58594 and #58450 independently; their recipes are in
-[`image/r28.6-a-pr58594/`](image/r28.6-a-pr58594) and
-[`image/r28.7-a-pr58450/`](image/r28.7-a-pr58450). R28.8-A combines both
-changes over R28.5-A in
-[`image/r28.8-a-pr58594-pr58450/`](image/r28.8-a-pr58594-pr58450).
+wheels, build trees and caches are intentionally excluded from Git.
+
+### Release lineage
+
+| Release | Parent | Change introduced | Recipe | Role |
+|---|---|---|---|---|
+| R28.1 | R28 | Display-reserved KV allocation | [`r28.1-display-kv-arm64`](image/r28.1-display-kv-arm64) | Historical foundation |
+| R28.2 | R28.1 | B12X wheel with three pinned upstream backports | [`r28.2-b12x-tg3-arm64`](image/r28.2-b12x-tg3-arm64) | Performance foundation |
+| R28.3-A | R28.2 | PR #58454: GLM k-pool tail-ring correctness | [`r28.3-a-pr58454`](image/r28.3-a-pr58454) | Superseded |
+| R28.4-A | R28.3-A | PR #58785: persistent top-k overflow fallback | [`r28.4-a-pr58785`](image/r28.4-a-pr58785) | Superseded |
+| R28.5-A | R28.4-A | PR #58779: bounded MTP draft-token RPC wait | [`r28.5-a-pr58779`](image/r28.5-a-pr58779) | Qualified reference |
+| R28.6-A | R28.5-A | PR #58594: sparse-indexer top-k backend selection | [`r28.6-a-pr58594`](image/r28.6-a-pr58594) | Isolated comparison |
+| R28.7-A | R28.5-A | PR #58450: GLM metadata construction | [`r28.7-a-pr58450`](image/r28.7-a-pr58450) | Isolated comparison |
+| **R28.8-A** | R28.5-A | **PRs #58594 + #58450 combined** | [`r28.8-a-pr58594-pr58450`](image/r28.8-a-pr58594-pr58450) | **Production / latest** |
+
+R28.6-A and R28.7-A branch independently from R28.5-A. R28.8-A combines their
+two changes; it is not built by layering R28.7-A over R28.6-A.
+
+### Published patch images
+
+Docker repository for every tag below:
+[`technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks`](https://hub.docker.com/r/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks).
+
+| Image | Tag | Digest | GitHub release |
+|---|---|---|---|
+| R28.1 | `r28.1-display-kv-arm64-sm121-cu134` | `92f11062…` | [Release](https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks/releases/tag/r28.1-display-kv-arm64-sm121-cu134) |
+| R28.2 | `r28.2-b12x-tg3-arm64-sm121-cu134` | [`b895b0c0…`](manifests/r28.2-image-identity.txt) | [Release](https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks/releases/tag/r28.2-b12x-tg3-arm64-sm121-cu134) |
+| R28.3-A | `r28.3-a-pr58454-arm64-sm121-cu134` | [`f39eef91…`](manifests/r28.3-a-image-identity.txt) | [Release](https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks/releases/tag/r28.3-a-pr58454-arm64-sm121-cu134) |
+| R28.4-A | `r28.4-a-pr58454-pr58785-arm64-sm121-cu134` | [`1e88fd52…`](manifests/r28.4-a-image-identity.txt) | [Release](https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks/releases/tag/r28.4-a-pr58454-pr58785-arm64-sm121-cu134) |
+| R28.5-A | `r28.5-a-pr58454-pr58785-pr58779-arm64-sm121-cu134` | [`ca40c504…`](manifests/r28.5-a-image-identity.txt) | [Release](https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks/releases/tag/r28.5-a-pr58454-pr58785-pr58779-arm64-sm121-cu134) |
+| R28.6-A | `r28.6-a-pr58454-pr58785-pr58779-pr58594-arm64-sm121-cu134` | [`b288dfa4…`](manifests/r28.6-a-image-identity.txt) | [Release](https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks/releases/tag/r28.6-a-pr58454-pr58785-pr58779-pr58594-arm64-sm121-cu134) |
+| R28.7-A | `r28.7-a-pr58454-pr58785-pr58779-pr58450-arm64-sm121-cu134` | [`92858727…`](manifests/r28.7-a-image-identity.txt) | [Release](https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks/releases/tag/r28.7-a-pr58454-pr58785-pr58779-pr58450-arm64-sm121-cu134) |
+| **R28.8-A** | `r28.8-a-pr58454-pr58785-pr58779-pr58594-pr58450-arm64-sm121-cu134` | [`1169f797…`](manifests/r28.8-a-image-identity.txt) | [Latest release](https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks/releases/tag/r28.8-a-pr58454-pr58785-pr58779-pr58594-pr58450-arm64-sm121-cu134) |
+
+Digest links open the stored image identity with the complete SHA-256 value;
+the R28.1 value is recorded in its release notes.
 
 ## Deploy
 
@@ -165,117 +200,82 @@ disabled in the qualified profile. This preserves the benchmarked behavior.
 
 ## Rebuild the image
 
-The first build compiles all pinned native components and can take several
-hours. Use a filesystem with ample temporary storage.
+To reproduce the current production image from its published R28.5-A parent:
 
 ```bash
-cd image/r28-karmic-kraken-arm64
+cd image/r28.8-a-pr58594-pr58450
 ./build.sh
 ```
 
-See the [R28 recipe README](image/r28-karmic-kraken-arm64/README.md) for resume,
-scratch-directory and output-tag options.
+The R28.8-A recipe is a small fail-closed Python overlay. It verifies the
+parent files, patch inputs and resulting files by SHA-256 and does not rebuild
+CUDA, PyTorch, vLLM native extensions or B12X.
 
-The R28.1 derivative is a small layer and does not rebuild CUDA, PyTorch, vLLM
-or B12X:
+To reproduce the isolated comparison images:
 
 ```bash
-cd image/r28.1-display-kv-arm64
+cd image/r28.6-a-pr58594
+./build.sh
+cd ../r28.7-a-pr58450
 ./build.sh
 ```
 
-R28.2 rebuilds only B12X and layers that wheel over R28.1:
-
-```bash
-cd image/r28.2-b12x-tg3-arm64
-./build.sh
-```
-
-R28.3-A is a small source overlay over R28.2 and does not rebuild CUDA,
-PyTorch, vLLM native extensions or B12X:
-
-```bash
-cd image/r28.3-a-pr58454
-./build.sh
-```
-
-R28.4-A installs the pinned native ARM64/SM121 vLLM wheel described by its
-patch manifest. Generated wheels remain outside Git:
-
-```bash
-cd image/r28.4-a-pr58785
-./build.sh
-```
-
-R28.5-A is a small Python-only overlay over R28.4-A:
-
-```bash
-cd image/r28.5-a-pr58779
-./build.sh
-```
-
-R28.6-A and R28.7-A independently apply the two GLM changes over R28.5-A;
-R28.8-A combines them:
-
-```bash
-cd image/r28.6-a-pr58594 && ./build.sh
-cd ../r28.7-a-pr58450 && ./build.sh
-cd ../r28.8-a-pr58594-pr58450 && ./build.sh
-```
+Rebuilding the native R28 foundation or R28.4-A wheel can take several hours
+and needs substantial temporary storage. Use the linked recipe in the release
+lineage table; the [R28 foundation README](image/r28-karmic-kraken-arm64/README.md)
+documents resume and scratch-directory options.
 
 ## Qualified performance
 
-R28.6-A, R28.7-A and R28.8-A were each tested with one cold and two warm,
-strictly sequential `tool-eval-bench --perf-only --depth
-"4096,8192,16384"` sweeps. Every run and chat smoke passed.
+R28.6-A, R28.7-A and R28.8-A were qualified on 2026-09-27 from the same RTX
+client. Tests ran strictly one at a time. Each image received one cold sweep,
+two warm sweeps and a chat smoke test.
 
-| Image | Patch set | Cold | Warm 1 | Warm 2 |
-|---|---|---:|---:|---:|
-| R28.6-A | PR #58594 | 9:26 | 9:09 | 8:47 |
-| R28.7-A | PR #58450 | 9:22 | 8:47 | 8:45 |
-| R28.8-A | Both patches | 9:26 | 8:47 | 8:50 |
+```bash
+uvx tool-eval-bench --base-url http://HEAD_IP:8000 \
+  --perf-only --depth "4096,8192,16384"
+```
 
-The two-warm-run aggregate for R28.8-A was 1,888.33 prompt tokens/s, 31.31
-generated tokens/s, 11,799.28 ms mean TTFT and 18,475.06 ms mean total
-latency. This is effectively flat against the valid R28.5-A warm reference at
-the benchmark's run-to-run variation. R28.8-A is selected because it combines
-both merged upstream changes without a performance regression.
+Each sweep contains 27 measurements: a 2,048-token prompt, 128 generated
+tokens, depths 4K/8K/16K, concurrency 1/2/4 and three runs per cell.
 
-The matched `tool-eval-bench --perf-only` sweep used a 2,048-token prompt,
-128 generated tokens, depths 4K/8K/16K, concurrency 1/2/4 and three runs per
-cell. Cold R28.5-A was effectively tied with R28.4-A; the observed warm
-R28.5-A run completed 31 seconds sooner. PR #58779 is timeout-only, so this is
-recorded as an operational result rather than a direct patch performance claim.
+### Qualification runs
 
-| Measure | R28.4-A warm | R28.5-A warm | Change |
-|---|---:|---:|---:|
-| Sweep wall time | 9:14 | 8:43 | 5.6% lower |
-| Mean prompt throughput | 1,745 t/s | 1,896 t/s | 8.6% higher |
-| Mean generation throughput | 30.28 t/s | 31.23 t/s | 3.2% higher |
-| Mean TTFT | 12,451 ms | 11,709 ms | 6.0% lower |
-| Mean total latency | 19,383 ms | 18,333 ms | 5.4% lower |
+| Image | Change over R28.5-A | Cold | Warm 1 | Warm 2 | Warm mean | Smoke | Outcome |
+|---|---|---:|---:|---:|---:|---|---|
+| R28.6-A | PR #58594 | 9:26 | 9:09 | 8:47 | 8:58 | Pass | Qualified comparison |
+| R28.7-A | PR #58450 | 9:22 | 8:47 | 8:45 | 8:46 | Pass | Qualified comparison |
+| **R28.8-A** | **PRs #58594 + #58450** | **9:26** | **8:47** | **8:50** | **8:49** | **Pass** | **Selected production image** |
 
-The exact cold/warm comparison is preserved in
-[`docs/benchmark.md`](docs/benchmark.md).
+Every smoke returned HTTP 200 with exact `SMOKE_OK` content. Both nodes used
+matching image IDs, stayed at zero restarts and reported a 1,049,451-token KV
+cache. Logs contained no matched CUDA, OOM, NCCL, traceback or runtime errors.
 
-R28.3-A was qualified with `llm-decode-bench 0.6.2` from a separate RTX host
-at repository commit `ccd9ad8ced7e387794391bfb0ac6d99b1f66ba6f`. Each
-sustained decode cell ran for 30 seconds with 2,048 maximum output tokens. The
-warm run completed without request, CUDA, OOM or distributed errors.
+### Warm performance aggregates
 
-| Context | C1 TG t/s | C2 total TG t/s | C4 total TG t/s |
-|---:|---:|---:|---:|
-| 16,384 | 30.8 | 44.9 | 66.2 |
-| 32,768 | 30.6 | 44.9 | 71.5 |
-| 65,536 | 29.5 | 45.6 | 70.4 |
+The patch-image rows average all 18 cells from their two warm sweeps. The
+R28.5-A reference contains nine cells from a separate valid 8:46 warm sweep
+collected with the same command; a transient 14:58 run was excluded.
 
-Its average sustained generation throughput across all nine cells was 48.3
-tokens/s, effectively tied with R28.1's 48.7 tokens/s reference while adding
-the k-pool correctness fix. Average R28.3-A c1/c2/c4 totals were 30.3, 45.1
-and 69.4 tokens/s. Warm prefill measured 1,944, 1,941, 1,943, 2,085 and 2,029
-tokens/s at 8K, 16K, 32K, 64K and 128K. The earlier cold post-start run and
-all per-cell MTP acceptance values are preserved in
-[`docs/benchmark.md`](docs/benchmark.md).
+| Image | Warm cells | Mean prompt | Mean generation | Mean TTFT | Mean total latency | Total vs R28.5-A |
+|---|---:|---:|---:|---:|---:|---:|
+| R28.5-A reference | 9 | 1,898.44 t/s | 31.19 t/s | 11,673.11 ms | 18,397.89 ms | — |
+| R28.6-A | 18 | 1,862.89 t/s | 31.30 t/s | 12,044.50 ms | 18,779.39 ms | +2.1% |
+| R28.7-A | 18 | 1,890.28 t/s | 31.24 t/s | 11,735.89 ms | 18,410.83 ms | +0.1% |
+| **R28.8-A** | **18** | **1,888.33 t/s** | **31.31 t/s** | **11,799.28 ms** | **18,475.06 ms** | **+0.4%** |
+
+Positive values in the last column mean higher latency. R28.7-A and R28.8-A
+are effectively flat against R28.5-A within the observed run-to-run variation.
+No speedup is attributed solely to either patch; R28.8-A was selected because
+it combines both merged changes without a measurable regression.
+
+An earlier 2026-09-26 R28.5-A warm sweep completed in 8:43 and is preserved
+with the R28.4-A comparison in the detailed report. It is not the nine-cell
+R28.5-A reference used in the aggregate table above.
+
+Historical R28.3-A sustained-decode results, the R28.4-A persistent-top-k GPU
+regression, every per-cell measurement and the earlier cold/warm comparisons
+are in [`docs/benchmark.md`](docs/benchmark.md).
 
 ## Repository scope
 
