@@ -5,12 +5,15 @@ This repository provides a reproducible two-node deployment for
 on two NVIDIA DGX Spark systems. It runs one GB10 GPU per node with tensor
 parallelism 2 over RoCE and exposes an OpenAI-compatible vLLM API on port 8000.
 
-The current production profile is R28.5-A. It retains the qualified R28.2 B12X
+The current production profile is R28.8-A. It retains the qualified R28.2 B12X
 performance stack and the correctness fixes from vLLM PRs
 [#58454](https://github.com/vllm-project/vllm/pull/58454) and
-[#58785](https://github.com/vllm-project/vllm/pull/58785), then adds the bounded
-MTP draft-token RPC wait from merged PR
-[#58779](https://github.com/vllm-project/vllm/pull/58779). It uses CUDA 13.4.1,
+[#58785](https://github.com/vllm-project/vllm/pull/58785), adds the bounded MTP
+draft-token RPC wait from merged PR
+[#58779](https://github.com/vllm-project/vllm/pull/58779), and combines the
+GLM sparse-indexer and metadata changes from merged PRs
+[#58594](https://github.com/vllm-project/vllm/pull/58594) and
+[#58450](https://github.com/vllm-project/vllm/pull/58450). It uses CUDA 13.4.1,
 PyTorch 2.14, a pinned vLLM/B12X stack, one-million-token context, MTP3
 speculative decoding, fixed FP8 KV cache and image input. On headless Sparks,
 1.75 GiB of each rank's KV buffer is backed by the firmware display
@@ -20,9 +23,9 @@ reservation. Client requests control temperature, `top_p` and reasoning effort.
 
 | Setting | Value |
 |---|---|
-| Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.5-a-pr58454-pr58785-pr58779-arm64-sm121-cu134` |
-| Base image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.4-a-pr58454-pr58785-arm64-sm121-cu134` |
-| Docker Hub digest | `sha256:ca40c504b0fac78a92c929262dbe6236cfa07c6896f36f7d2679123262d27dd6` |
+| Image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.8-a-pr58454-pr58785-pr58779-pr58594-pr58450-arm64-sm121-cu134` |
+| Base image | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.5-a-pr58454-pr58785-pr58779-arm64-sm121-cu134` |
+| Docker Hub digest | `sha256:1169f797539454e3c286557d49fddd488488957d9a3f10638b01052998370622` |
 | Moving alias | `technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:latest` points to the same digest |
 | Platform | Linux ARM64, GB10 / SM121a |
 | CUDA / PyTorch | 13.4.1 / 2.14.0 NVIDIA 26.08 build |
@@ -86,7 +89,12 @@ natively with PR #58785 and preserves the display-KV overlay; its source and
 wheel hashes are in
 [`image/r28.4-a-pr58785/`](image/r28.4-a-pr58785). R28.5-A adds merged PR
 #58779 as a fail-closed Python overlay documented in
-[`image/r28.5-a-pr58779/`](image/r28.5-a-pr58779).
+[`image/r28.5-a-pr58779/`](image/r28.5-a-pr58779). R28.6-A and R28.7-A test
+merged PRs #58594 and #58450 independently; their recipes are in
+[`image/r28.6-a-pr58594/`](image/r28.6-a-pr58594) and
+[`image/r28.7-a-pr58450/`](image/r28.7-a-pr58450). R28.8-A combines both
+changes over R28.5-A in
+[`image/r28.8-a-pr58594-pr58450/`](image/r28.8-a-pr58594-pr58450).
 
 ## Deploy
 
@@ -97,7 +105,7 @@ model revision available in the same Hugging Face cache path on both systems.
 ```bash
 git clone https://github.com/technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks.git
 cd glm-5.3-flash-nvfp4-2x-dgx-sparks
-docker pull technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.5-a-pr58454-pr58785-pr58779-arm64-sm121-cu134
+docker pull technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.8-a-pr58454-pr58785-pr58779-pr58594-pr58450-arm64-sm121-cu134
 cp .env.example .env
 # Apply the headless host setup in docs/display-kv-r28.1.md on both nodes.
 # Edit the cache path, RoCE interfaces, IP addresses, SSH target and worker path.
@@ -206,7 +214,32 @@ cd image/r28.5-a-pr58779
 ./build.sh
 ```
 
+R28.6-A and R28.7-A independently apply the two GLM changes over R28.5-A;
+R28.8-A combines them:
+
+```bash
+cd image/r28.6-a-pr58594 && ./build.sh
+cd ../r28.7-a-pr58450 && ./build.sh
+cd ../r28.8-a-pr58594-pr58450 && ./build.sh
+```
+
 ## Qualified performance
+
+R28.6-A, R28.7-A and R28.8-A were each tested with one cold and two warm,
+strictly sequential `tool-eval-bench --perf-only --depth
+"4096,8192,16384"` sweeps. Every run and chat smoke passed.
+
+| Image | Patch set | Cold | Warm 1 | Warm 2 |
+|---|---|---:|---:|---:|
+| R28.6-A | PR #58594 | 9:26 | 9:09 | 8:47 |
+| R28.7-A | PR #58450 | 9:22 | 8:47 | 8:45 |
+| R28.8-A | Both patches | 9:26 | 8:47 | 8:50 |
+
+The two-warm-run aggregate for R28.8-A was 1,888.33 prompt tokens/s, 31.31
+generated tokens/s, 11,799.28 ms mean TTFT and 18,475.06 ms mean total
+latency. This is effectively flat against the valid R28.5-A warm reference at
+the benchmark's run-to-run variation. R28.8-A is selected because it combines
+both merged upstream changes without a performance regression.
 
 The matched `tool-eval-bench --perf-only` sweep used a 2,048-token prompt,
 128 generated tokens, depths 4K/8K/16K, concurrency 1/2/4 and three runs per

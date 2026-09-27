@@ -2,6 +2,47 @@
 
 This document keeps the qualified production measurements and the historical comparisons that explain the selected image and model. Unless stated otherwise, performance tests used `llama-benchy 0.4.0` from a separate RTX client. PP is total prompt-processing throughput, TG is generation throughput, and TTFR is time to first response.
 
+## R28.6-A, R28.7-A and R28.8-A patch qualification
+
+Qualified on 2026-09-27 from the same RTX client with identical arguments:
+
+```bash
+uvx tool-eval-bench --base-url http://HEAD_IP:8000 \
+  --perf-only --depth "4096,8192,16384"
+```
+
+Each image received one cold and two warm sweeps, strictly one at a time. Each
+sweep used PP=2048, TG=128, depths 4K/8K/16K, concurrency 1/2/4 and three runs
+per cell. R28.6-A adds vLLM PR #58594 over R28.5-A, R28.7-A adds PR #58450,
+and R28.8-A combines both.
+
+| Image | Smoke | Cold | Warm 1 | Warm 2 |
+|---|---|---:|---:|---:|
+| R28.6-A | pass | 9:26 | 9:09 | 8:47 |
+| R28.7-A | pass | 9:22 | 8:47 | 8:45 |
+| R28.8-A | pass | 9:26 | 8:47 | 8:50 |
+
+Every smoke returned HTTP 200 with exact `SMOKE_OK` content. Both nodes used
+matching image IDs, stayed at zero restarts and reported the expected
+1,049,451-token KV cache. Logs contained no matched CUDA, OOM, NCCL,
+traceback or runtime errors.
+
+The aggregates below average all 18 comparable cells from both warm runs.
+The R28.5-A reference uses its valid 8:46 warm run; a separate 14:58 transient
+outlier is excluded.
+
+| Image | Cells | Mean PP | Mean TG | Mean TTFT | Mean total |
+|---|---:|---:|---:|---:|---:|
+| R28.5-A | 9 | 1,898.44 t/s | 31.19 t/s | 11,673.11 ms | 18,397.89 ms |
+| R28.6-A | 18 | 1,862.89 t/s | 31.30 t/s | 12,044.50 ms | 18,779.39 ms |
+| R28.7-A | 18 | 1,890.28 t/s | 31.24 t/s | 11,735.89 ms | 18,410.83 ms |
+| R28.8-A | 18 | 1,888.33 t/s | 31.31 t/s | 11,799.28 ms | 18,475.06 ms |
+
+R28.7-A and R28.8-A are effectively flat against the valid R28.5-A warm
+reference at this test's run-to-run variation. No speedup is attributed solely
+to either patch; qualification establishes compatibility and absence of a
+measurable regression in this deployment.
+
 ## R28.4-A and R28.5-A patch qualification
 
 Qualified on 2026-09-26 using `tool-eval-bench --perf-only` from the same RTX

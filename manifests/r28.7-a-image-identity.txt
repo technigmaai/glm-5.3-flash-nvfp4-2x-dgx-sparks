@@ -1,0 +1,6 @@
+image=technigmaai/glm-5.3-flash-nvfp4-2x-dgx-sparks:r28.7-a-pr58454-pr58785-pr58779-pr58450-arm64-sm121-cu134
+local_image_id=sha256:9285872753297c931d5bdf218dc93146c088cde9759da59527156b3b26aaf76a
+docker_hub_digest=sha256:9285872753297c931d5bdf218dc93146c088cde9759da59527156b3b26aaf76a
+platform=linux/arm64
+created=2026-09-26T23:50:07Z
+size_bytes=14918878761

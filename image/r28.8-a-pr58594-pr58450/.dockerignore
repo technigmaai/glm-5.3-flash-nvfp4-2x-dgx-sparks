@@ -1,0 +1,6 @@
+*
+!Dockerfile
+!pr58594-runtime.patch
+!pr58450-runtime.patch
+!validate_r288a_static.py
+
