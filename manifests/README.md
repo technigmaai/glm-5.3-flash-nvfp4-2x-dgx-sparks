@@ -40,12 +40,12 @@ are recorded in
 [`image/r28.4-a-pr58785/`](../image/r28.4-a-pr58785/).
 
 The R28.5-A release adds `r28.5-a-image-identity.txt` and
-`r28.5-a-image-labels.json`. It is the production Python-only overlay for
-merged PR #58779 and is also the current `latest` image. Its fail-closed patch
-recipe is in
+`r28.5-a-image-labels.json`. It is the historical Python-only overlay for
+merged PR #58779. Its fail-closed patch recipe is in
 [`image/r28.5-a-pr58779/`](../image/r28.5-a-pr58779/).
 
 The R28.6-A, R28.7-A and R28.8-A releases add matching image-identity files.
 R28.6-A carries PR #58594, R28.7-A carries PR #58450, and the production
-R28.8-A image combines both over R28.5-A. Their fail-closed recipes and exact
-patch provenance are in the corresponding `image/r28.*` directories.
+R28.8-A image combines both over R28.5-A and is the current `latest` image.
+Their fail-closed recipes and exact patch provenance are in the corresponding
+`image/r28.*` directories.
